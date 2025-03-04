@@ -3,16 +3,15 @@ import socket as s
 import threading as t
 
 class Server (SockObj):
-    def __init__(self, port):
+    def __init__(self, port) -> None:
         self.addr = "0.0.0.0" # Arbitrary local address
-        self.port = port
-        super().__init__(self.addr, self.port, True) # init SockObj
+        super().__init__(self.addr, port, True) # init SockObj
         self.bind() # bind to address and port
 
         self.stay_alive = True
-        self.threads = []
+        self.threads = {}
 
-    def _find_local_addr (self):
+    def _find_local_addr (self) -> str:
         """
         Collects all ip addresses used by the host
         and asks the user to pick one to bind to
@@ -25,12 +24,12 @@ class Server (SockObj):
         num = input("\n")
         return addrs[int(num)]
 
-    def _handle_connection (self, sock):
+    def _handle_connection (self, sock) -> None:
         data = recv_msg(sock)
         t_print(data)
         t_print("Thread exiting")
 
-    def receive_peers (self):
+    def receive_peers (self) -> None:
         self.sock.listen()
         t_print("listening on: "+self.addr+" on port: "+str(self.port))
         thread_count = 0
@@ -38,14 +37,14 @@ class Server (SockObj):
         while self.stay_alive:
             conn, addr = self.sock.accept()
             t_print("Incoming connection from "+str(addr[0])+" on port "+str(addr[1]))
-            conn_thread = t.Thread(target=self._handle_connection, name="connnection-"+str(thread_count), args=[conn])
-            self.threads.append(conn_thread)
-            self.threads[len(self.threads)-1].start()
+            conn_thread = t.Thread(target=self._handle_connection, name="connnection-"+str(thread_count), args=[conn, addr])
+            self.threads[conn_thread.ident] = conn_thread
+            self.threads[conn_thread.ident].start()
             thread_count+=1
 
         t_print("shutting down")
         self.sock.shutdown(s.SHUT_RDWR)
         self.sock.close()
 
-    def exit (self):
+    def stop (self) -> None:
         self.stay_alive = False

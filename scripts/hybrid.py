@@ -76,12 +76,17 @@ class TCPHybrid (Server):
     
     def wait_event(self, msg_type : int, addr : str, session_id : int) -> bool:
         event = self._create_event(msg_type, addr, session_id)
+        t_print("Creating event")
         if event:
+            t_print("Waiting for event")
             if event.wait(self.timeout):
+                t_print("Event successful")
                 self._remove_event(msg_type, addr, session_id)
                 return True
+            t_print("Event timed out")
         else:
-            return False
+            t_print("Event failed")
+            return False # false if timeout, or event failed to be created
         
     def send_message(self, addr : str, port : int, msg_type : int, session_id : int, payload = None) -> bool:
         client_obj = self._create_client(addr, port)

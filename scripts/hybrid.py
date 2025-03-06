@@ -35,7 +35,7 @@ class TCPHybrid (Server):
     def _create_event(self, msg_type : int, addr : str, session_id : int) -> t.Event:
         if (msg_type, addr, session_id) not in self.listen_events:
             data = None
-            self.listen_events[(msg_type, addr, session_id)] = (t.Event(), data) # create a new event for this specific connection
+            self.listen_events[(msg_type, addr, session_id)] = [t.Event(), data] # create a new event for this specific connection
             return self._get_event(msg_type, addr, session_id)
         return False
 

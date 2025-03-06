@@ -77,9 +77,9 @@ class TCPHybrid (Server):
     def wait_event(self, msg_type : int, addr : str, session_id : int) -> bool:
         event = self._create_event(msg_type, addr, session_id)
         if event:
-            event.wait(self.timeout)
-            self._remove_event(msg_type, addr, session_id)
-            return True
+            if event.wait(self.timeout):
+                self._remove_event(msg_type, addr, session_id)
+                return True
         else:
             return False
         

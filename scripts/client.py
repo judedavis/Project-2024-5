@@ -28,6 +28,7 @@ class Client (SockObj):
                 return False
             total_sent += sent
         t_print("Message sent to: "+self.addr+", "+str(self.port))
+        self.exit() # close the socket
         return True
     
     def exit(self) -> None:

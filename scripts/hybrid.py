@@ -23,12 +23,16 @@ class TCPHybrid (Server):
 
         if msg_type == MessageTypes.HANDSHAKE_REQ:
             self.receieve_handshake(addr, session_id)
+
         if msg_type == MessageTypes.HANDSHAKE_ACK:
             self.set_and_check_event(msg_type, addr, session_id, data)
+
         if msg_type == MessageTypes.HANDSHAKE_ACK_2:
             self.set_and_check_event(msg_type, addr, session_id, data)
+
         if msg_type == MessageTypes.HANDSHAKE_FINAL_1:
             self.set_and_check_event(msg_type, addr, session_id, data)
+
         if msg_type == MessageTypes.HANDSHAKE_FINAL_2:
             self.set_and_check_event(msg_type, addr, session_id, data)
             
@@ -95,7 +99,7 @@ class TCPHybrid (Server):
             t_print("Event failed of type: "+str(msg_type))
             return False # false if timeout, or event failed to be created
         
-    def send_message(self, addr : str, port : int, msg_type : int, session_id : int, payload = None) -> bool:
+    def _send_message(self, addr : str, port : int, msg_type : int, session_id : int, payload = None) -> bool:
         client_obj = self._create_client(addr, port)
         if isinstance(payload, str):
             payload = payload.encode('utf-8')
@@ -107,24 +111,50 @@ class TCPHybrid (Server):
     def _generate_session_id(self) -> int:
         return int.from_bytes(r.randbytes(8), 'little')
 
+    ## Protocol Operations
+
     def request_handshake(self, addr : str):
         # here we get our public key ready
         session_id = self._generate_session_id()
-        self.send_message(addr, self.port, MessageTypes.HANDSHAKE_REQ, session_id) # Request handshake with target (payload will be the public key)
+        self._send_message(addr, self.port, MessageTypes.HANDSHAKE_REQ, session_id) # Request handshake with target (payload will be the public key)
         self.wait_event(MessageTypes.HANDSHAKE_ACK, addr, session_id) # Create an event to block until response received
-        self.send_message(addr, self.port, MessageTypes.HANDSHAKE_ACK_2, session_id)
+        self._send_message(addr, self.port, MessageTypes.HANDSHAKE_ACK_2, session_id)
         self.wait_event(MessageTypes.HANDSHAKE_FINAL_1, addr, session_id)
-        self.send_message(addr, self.port, MessageTypes.HANDSHAKE_FINAL_2, session_id)
+        self._send_message(addr, self.port, MessageTypes.HANDSHAKE_FINAL_2, session_id)
         t_print("Handshake finished!")
 
     def receieve_handshake(self, addr: str, session_id : int):
-        self.send_message(addr, self.port, MessageTypes.HANDSHAKE_ACK, session_id)
+        self._send_message(addr, self.port, MessageTypes.HANDSHAKE_ACK, session_id)
         self.wait_event(MessageTypes.HANDSHAKE_ACK_2, addr, session_id)
-        self.send_message(addr, self.port, MessageTypes.HANDSHAKE_FINAL_1, session_id)
+        self._send_message(addr, self.port, MessageTypes.HANDSHAKE_FINAL_1, session_id)
         self.wait_event(MessageTypes.HANDSHAKE_FINAL_2, addr, session_id)
         t_print("Handshake finished!")
         return
     
+    def request_update_peers(self, addr: str):
+        return
+    
+    def receive_update_peers(self, addr: str, session_id : int):
+        return
+    
+    def request_join_network(self, addr: str):
+        return
+    
+    def receive_join_network(self, addr: str, session_id : int):
+        return
+    
+    def request_keep_alive(self, addr: str):
+        return
+    
+    def receive_keep_alive(self, addr: str, session_id : int):
+        return
+    
+    def send_secure_message(self, addr: str):
+        return
+    
+    def receive_secure_message(self, addr: str, session_id : int):
+        return
+
     def start_server(self) -> None:
         server_thread = t.Thread(target=self.receive_peers,
                                      name="Server Thread")

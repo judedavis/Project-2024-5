@@ -22,7 +22,8 @@ class MessageTypes ():
     HANDSHAKE_REQ = 1
     HANDSHAKE_ACK = 2
     HANDSHAKE_ACK_2 = 3
-    HANDSHAKE_FINAL = 4
+    HANDSHAKE_FINAL_1 = 4
+    HANDSHAKE_FINAL_2 = 5
 
 def create_header(payload: bytearray, msg_type: int, session_id: int) -> bytearray:
     """

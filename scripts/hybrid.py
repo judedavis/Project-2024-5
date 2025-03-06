@@ -25,6 +25,13 @@ class TCPHybrid (Server):
             self.receieve_handshake(addr, session_id)
         if msg_type == MessageTypes.HANDSHAKE_ACK:
             self.set_and_check_event(msg_type, addr, session_id, data)
+        if msg_type == MessageTypes.HANDSHAKE_ACK_2:
+            self.set_and_check_event(msg_type, addr, session_id, data)
+        if msg_type == MessageTypes.HANDSHAKE_FINAL_1:
+            self.set_and_check_event(msg_type, addr, session_id, data)
+        if msg_type == MessageTypes.HANDSHAKE_FINAL_2:
+            self.set_and_check_event(msg_type, addr, session_id, data)
+            
         return
 
     def _create_client(self, addr : str, port : int) -> client.Client:
@@ -106,15 +113,15 @@ class TCPHybrid (Server):
         self.send_message(addr, self.port, MessageTypes.HANDSHAKE_REQ, session_id) # Request handshake with target (payload will be the public key)
         self.wait_event(MessageTypes.HANDSHAKE_ACK, addr, session_id) # Create an event to block until response received
         self.send_message(addr, self.port, MessageTypes.HANDSHAKE_ACK_2, session_id)
-        self.wait_event(MessageTypes.HANDSHAKE_FINAL, addr, session_id)
-        self.send_message(addr, self.port, MessageTypes.HANDSHAKE_FINAL, session_id)
+        self.wait_event(MessageTypes.HANDSHAKE_FINAL_1, addr, session_id)
+        self.send_message(addr, self.port, MessageTypes.HANDSHAKE_FINAL_2, session_id)
         t_print("Handshake finished!")
 
     def receieve_handshake(self, addr: str, session_id : int):
         self.send_message(addr, self.port, MessageTypes.HANDSHAKE_ACK, session_id)
         self.wait_event(MessageTypes.HANDSHAKE_ACK_2, addr, session_id)
-        self.send_message(addr, self.port, MessageTypes.HANDSHAKE_FINAL, session_id)
-        self.wait_event(MessageTypes.HANDSHAKE_FINAL, addr, session_id)
+        self.send_message(addr, self.port, MessageTypes.HANDSHAKE_FINAL_1, session_id)
+        self.wait_event(MessageTypes.HANDSHAKE_FINAL_2, addr, session_id)
         t_print("Handshake finished!")
         return
     

@@ -9,6 +9,7 @@ class TCPHybrid (Server):
         super().__init__(port)
         self.clients = []
         self.listen_events = {}
+        self.timeout = 500
 
     # OVERRIDDEN
     def _handle_connection(self, sock : s.socket, addr : list) -> None:
@@ -19,42 +20,39 @@ class TCPHybrid (Server):
             t_print("received message of type: "+str(msg_type))
         else:
             t_print("received message of type: "+str(msg_type)+" with data: "+str(data))
+
         if msg_type == MessageTypes.HANDSHAKE_REQ:
             self.receieve_handshake(addr, session_id)
+        if msg_type == MessageTypes.HANDSHAKE_ACK:
+            self.set_and_check_event(msg_type, addr, session_id, data)
         return
 
     def _create_client(self, addr : str, port : int) -> client.Client:
         client_obj = client.Client(addr, port)
-        # client_thread = t.Thread(target=method,
-        #                              name="client "+str(len(self.clients)+1))
         self.clients.append(client_obj)
-        # self.threads[client_thread.ident] = client_thread
         return client_obj
     
-    def _send_message(self, addr : str, port : int, msg_type : int, session_id : int, payload = None) -> bool:
-        client_obj = self._create_client(addr, port)
-        if isinstance(payload, str):
-            payload = payload.encode('utf-8')
-        if not payload:
-            payload = bytearray()
-        msg = create_message(payload, msg_type, session_id)
-        return client_obj.send_message(msg)
-    
-    def _get_event(self, msg_type : int, addr : str, session_id : int) -> t.Event:
-        if (msg_type, addr, session_id) in self.listen_events:
-            return self.listen_events[(msg_type, addr, session_id)] # get and return the event
-        return False
-
     def _create_event(self, msg_type : int, addr : str, session_id : int) -> t.Event:
         if (msg_type, addr, session_id) not in self.listen_events:
-            self.listen_events[(msg_type, addr, session_id)] = t.Event() # create a new event for this specific connection
+            data = None
+            self.listen_events[(msg_type, addr, session_id)] = (t.Event(), data) # create a new event for this specific connection
             return self._get_event(msg_type, addr, session_id)
         return False
-    
-    def _check_event(self, msg_type : int, addr : str, session_id : int) -> t.Event:
+
+    def _get_event(self, msg_type : int, addr : str, session_id : int) -> t.Event:
         if (msg_type, addr, session_id) in self.listen_events:
-            self.listen_events[(msg_type, addr, session_id)][0].set() # set this event if it exists
-            return self._get_event(msg_type, addr, session_id)
+            return self.listen_events[(msg_type, addr, session_id)][0] # get and return the event
+        return False
+    
+    def _get_data(self, msg_type : int, addr : str, session_id : int) -> bytearray:
+        if (msg_type, addr, session_id) in self.listen_events:
+            return self.listen_events[(msg_type, addr, session_id)][1] # get and return the data
+        return None
+
+    def _set_data(self, msg_type : int, addr : str, session_id : int, data : bytearray) -> bool:
+        if (msg_type, addr, session_id) in self.listen_events:
+            self.listen_events[(msg_type, addr, session_id)][1] = data # set the data field
+            return True
         return False
     
     def _remove_event(self, msg_type : int, addr : str, session_id : int) -> bool:
@@ -62,25 +60,57 @@ class TCPHybrid (Server):
             self.listen_events.pop((msg_type, addr, session_id))
             return True
         return False
+
+    def _check_event(self, msg_type : int, addr : str, session_id : int) -> t.Event:
+        if (msg_type, addr, session_id) in self.listen_events:
+            self.listen_events[(msg_type, addr, session_id)][0].set() # set this event if it exists
+            return self._get_event(msg_type, addr, session_id)
+        return False
     
+    def set_and_check_event(self, msg_type : int, addr : str, session_id : int, data: bytearray) -> bool:
+        if (msg_type, addr, session_id) in self.listen_events:
+            self._set_data(msg_type, addr, session_id, data)
+            self.listen_events[(msg_type, addr, session_id)][0].set() # set this event if it exists
+            return True
+        return False
+    
+    def wait_event(self, msg_type : int, addr : str, session_id : int) -> bool:
+        event = self._create_event(msg_type, addr, session_id)
+        if event:
+            event.wait(self.timeout)
+            self._remove_event(msg_type, addr, session_id)
+            return True
+        else:
+            return False
+        
+    def send_message(self, addr : str, port : int, msg_type : int, session_id : int, payload = None) -> bool:
+        client_obj = self._create_client(addr, port)
+        if isinstance(payload, str):
+            payload = payload.encode('utf-8')
+        if not payload:
+            payload = bytearray()
+        msg = create_message(payload, msg_type, session_id)
+        return client_obj.send_message(msg)
+        
     def _generate_session_id(self) -> int:
         return int.from_bytes(r.randbytes(8), 'little')
 
-    def request_handshake(self, addr : str, port : int):
+    def request_handshake(self, addr : str):
         # here we get our public key ready
         session_id = self._generate_session_id()
-        self._send_message(addr, port, MessageTypes.HANDSHAKE_REQ, session_id) # Request handshake with target (payload will be the public key)
-        event = self._create_event(MessageTypes.HANDSHAKE_ACK, addr, session_id) # Create an event to block until response received
-        if event:
-            t_print("event was created")
-            event.wait()
-            t_print("the event was satisfied")
-        else:
-            t_print("event was not created")
-        # wait on event
+        self.send_message(addr, self.port, MessageTypes.HANDSHAKE_REQ, session_id) # Request handshake with target (payload will be the public key)
+        self.wait_event(MessageTypes.HANDSHAKE_ACK, addr, session_id) # Create an event to block until response received
+        self.send_message(addr, self.port, MessageTypes.HANDSHAKE_ACK_2, session_id)
+        self.wait_event(MessageTypes.HANDSHAKE_FINAL, addr, session_id)
+        self.send_message(addr, self.port, MessageTypes.HANDSHAKE_FINAL, session_id)
+        t_print("Handshake finished!")
 
     def receieve_handshake(self, addr: str, session_id : int):
-        self._send_message(addr, self.port, MessageTypes.HANDSHAKE_ACK, session_id)
+        self.send_message(addr, self.port, MessageTypes.HANDSHAKE_ACK, session_id)
+        self.wait_event(MessageTypes.HANDSHAKE_ACK_2, addr, session_id)
+        self.send_message(addr, self.port, MessageTypes.HANDSHAKE_FINAL, session_id)
+        self.wait_event(MessageTypes.HANDSHAKE_FINAL, addr, session_id)
+        t_print("Handshake finished!")
         return
     
     def start_server(self) -> None:

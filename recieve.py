@@ -3,4 +3,4 @@ from scripts.shared import *
 
 h = TCPHybrid()
 h.start_server()
-h.request_handshake('localhost', h.port)
+h.request_handshake('192.168.1.101', h.port)

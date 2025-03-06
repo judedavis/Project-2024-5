@@ -21,6 +21,8 @@ class SockObj ():
 class MessageTypes ():
     HANDSHAKE_REQ = 1
     HANDSHAKE_ACK = 2
+    HANDSHAKE_ACK_2 = 3
+    HANDSHAKE_FINAL = 4
 
 def create_header(payload: bytearray, msg_type: int, session_id: int) -> bytearray:
     """

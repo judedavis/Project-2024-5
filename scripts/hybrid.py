@@ -118,6 +118,13 @@ class TCPHybrid (Server):
             return True
         return False
     
+    def async_wait_event(self, msg_type : int, addr : str, session_id : int) -> bool:
+        event = self._get_event(msg_type, addr, session_id)
+        if event:
+            event.wait(self.timeout)
+            return True
+        return False # event was not found
+    
     def wait_event(self, msg_type : int, addr : str, session_id : int) -> bool:
         event = self._create_event(msg_type, addr, session_id)
         t_print("Creating event of type: "+str(msg_type))
@@ -215,7 +222,7 @@ class TCPHybrid (Server):
     
     def receive_join_network(self, addr : str, session_id : int) -> bool:
         self._send_message(addr, self.port, MessageTypes.JOIN_NETWORK_ACK, session_id)
-        self.wait_event(MessageTypes.UPDATE_PEERS_FINAL_2, addr, session_id) # wait until the update peers function is complete
+        self.async_wait_event(MessageTypes.UPDATE_PEERS_FINAL_2, addr, session_id) # wait until the update peers function is complete
         t_print("Join network finished!")
         return True
     

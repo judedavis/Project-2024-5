@@ -240,16 +240,30 @@ class TCPHybrid (Server):
         t_print("Join network finished!")
         return True
     
-    def request_keep_alive(self, addr : str) -> bool:
+    def request_keep_alive(self, addr : str, session_id : int = None) -> bool:
+        if (not session_id):
+            session_id = self._generate_session_id()
+        self._send_message(addr, self.port, MessageTypes.KEEP_ALIVE_REQ, session_id)
+        self.wait_event(MessageTypes.KEEP_ALIVE_ACK_1, addr, session_id)
+        t_print("Keep Alive finished!")
         return True
     
     def receive_keep_alive(self, addr : str, session_id : int) -> bool:
+        self._send_message(addr, self.port, MessageTypes.KEEP_ALIVE_ACK_1, session_id)
+        t_print("Keep Alive finished!")
         return True
     
-    def send_data_message(self, addr : str) -> bool:
+    def request_send_data(self, addr : str, session_id : int = None) -> bool:
+        if (not session_id):
+            session_id = self._generate_session_id()
+        self._send_message(addr, self.port, MessageTypes.SEND_DATA_REQ, session_id)
+        self.wait_event(MessageTypes.SEND_DATA_ACK, addr, session_id)
+        t_print("Send data finished!")
         return True
     
-    def receive_data_message(self, addr : str, session_id : int) -> bool:
+    def receieve_send_data(self, addr : str, session_id : int) -> bool:
+        self._send_message(addr, self.port, MessageTypes.SEND_DATA_ACK, session_id)
+        t_print("Send data finished!")
         return True
 
     def start_server(self) -> None:

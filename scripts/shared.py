@@ -35,6 +35,11 @@ class MessageTypes ():
     EXCHANGE_FINAL = 14
     JOIN_NETWORK_REQ = 15
     JOIN_NETWORK_ACK = 16
+    KEEP_ALIVE_REQ = 17
+    KEEP_ALIVE_ACK_1 = 18
+    KEEP_ALIVE_ACK_2 = 19
+    SEND_DATA_REQ = 20
+    SEND_DATA_ACK = 21
 
 def create_header(payload: bytearray, msg_type: int, session_id: int) -> bytearray:
     """

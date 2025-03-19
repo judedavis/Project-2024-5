@@ -80,6 +80,8 @@ class TCPHybrid (Server):
         return client_obj
     
     def _create_event(self, msg_type : int, addr : str, session_id : int) -> t.Event:
+        if (msg_type, addr, session_id) in self.listen_events:
+            return self._get_event(msg_type, addr, session_id) # if event already exists, just return that
         if (msg_type, addr, session_id) not in self.listen_events:
             data = None
             self.listen_events[(msg_type, addr, session_id)] = [t.Event(), data] # create a new event for this specific connection
@@ -122,11 +124,16 @@ class TCPHybrid (Server):
         return False
     
     def async_wait_event(self, msg_type : int, addr : str, session_id : int) -> bool:
+        """
+        Observe an event without deleting
+        """
         event = self._get_event(msg_type, addr, session_id)
+        if not event: # if event does not exist then create it
+            event = self._create_event(msg_type, addr, session_id)
         if event:
             t_print("Asynchronously waiting for event of type: "+str(msg_type))
             if event.wait(self.timeout):
-                return True
+                return True # return without deleting event, since we only want to observe
             t_print("Event timed out of type: "+str(msg_type))
         t_print("Event failed of type: "+str(msg_type))
         return False # event was not found
@@ -142,7 +149,7 @@ class TCPHybrid (Server):
                 return True
             t_print("Event timed out of type: "+str(msg_type))
         else:
-            
+            t_print("Event failed of type: "+str(msg_type))
             return False # false if timeout, or event failed to be created
         
     def _send_message(self, addr : str, port : int, msg_type : int, session_id : int, payload = None) -> bool:

@@ -21,6 +21,9 @@ class TCPHybrid (Server):
         else:
             t_print("received message of type: "+str(msg_type)+" with data: "+str(data))
 
+        # CASE FOR EVERY TYPE OF MESSAGE IN PROTOCOL
+        # I would like to use a switch statement, but developing with python 3.9 (look into this)
+        
         if msg_type == MessageTypes.HANDSHAKE_REQ:
             self.receieve_handshake(addr, session_id)
 
@@ -137,7 +140,7 @@ class TCPHybrid (Server):
 
     ## Protocol Operations
 
-    def request_handshake(self, addr : str):
+    def request_handshake(self, addr : str) -> bool:
         # here we get our public key ready
         session_id = self._generate_session_id()
         self._send_message(addr, self.port, MessageTypes.HANDSHAKE_REQ, session_id) # Request handshake with target (payload will be the public key)
@@ -145,17 +148,17 @@ class TCPHybrid (Server):
         self._send_message(addr, self.port, MessageTypes.HANDSHAKE_ACK_2, session_id)
         self.wait_event(MessageTypes.HANDSHAKE_FINAL_1, addr, session_id)
         self._send_message(addr, self.port, MessageTypes.HANDSHAKE_FINAL_2, session_id)
-        t_print("Handshake finished!")
+        return True
 
-    def receieve_handshake(self, addr : str, session_id : int):
+    def receieve_handshake(self, addr : str, session_id : int) -> bool:
         self._send_message(addr, self.port, MessageTypes.HANDSHAKE_ACK, session_id)
         self.wait_event(MessageTypes.HANDSHAKE_ACK_2, addr, session_id)
         self._send_message(addr, self.port, MessageTypes.HANDSHAKE_FINAL_1, session_id)
         self.wait_event(MessageTypes.HANDSHAKE_FINAL_2, addr, session_id)
         t_print("Handshake finished!")
-        return
+        return True
     
-    def request_update_peers(self, addr : str):
+    def request_update_peers(self, addr : str) -> bool:
         session_id = self._generate_session_id()
         self._send_message(addr, self.port, MessageTypes.UPDATE_PEERS_REQ, session_id)
         self.wait_event(MessageTypes.UPDATE_PEERS_ACK, addr, session_id)
@@ -163,47 +166,53 @@ class TCPHybrid (Server):
         self.wait_event(MessageTypes.UPDATE_PEERS_FINAL_1, addr, session_id)
         self._send_message(addr, self.port, MessageTypes.UPDATE_PEERS_FINAL_2, session_id)
         t_print("Update Peer Table finished!")
-        return
+        return True
     
-    def receive_update_peers(self, addr : str, session_id : int):
+    def receive_update_peers(self, addr : str, session_id : int) -> bool:
         self._send_message(addr, self.port, MessageTypes.UPDATE_PEERS_ACK, session_id)
         self.wait_event(MessageTypes.UPDATE_PEERS_ACK_2, addr, session_id)
         self._send_message(addr, self.port, MessageTypes.UPDATE_PEERS_FINAL_1, session_id)
         self.wait_event(MessageTypes.UPDATE_PEERS_FINAL_2, addr, session_id)
         t_print("Update Peer Table finished!")
-        return
+        return True
     
-    def request_key_exchange(self, addr: str):
+    def request_key_exchange(self, addr: str) -> bool:
         session_id = self._generate_session_id()
         self._send_message(addr, self.port, MessageTypes.EXCHANGE_REQ, session_id)
         self.wait_event(MessageTypes.EXCHANGE_ACK, addr, session_id)
         self._send_message(addr, self.port, MessageTypes.EXCHANGE_ACK_2, session_id)
         self.wait_event(MessageTypes.EXCHANGE_FINAL, addr, session_id)
-        return
+        t_print("Key exchange finished!")
+        return True
     
-    def receive_key_exchange(self, addr : str, session_id : int):
+    def receive_key_exchange(self, addr : str, session_id : int) -> bool:
         self._send_message(addr, self.port, MessageTypes.EXCHANGE_ACK, session_id)
         self.wait_event(MessageTypes.EXCHANGE_ACK_2, addr, session_id)
         self._send_message(addr, self.port, MessageTypes.EXCHANGE_FINAL, session_id)
-        return
+        t_print("Key exchange finished!")
+        return True
 
-    def request_join_network(self, addr : str):
-        return
+    def request_join_network(self, addr : str) -> bool:
+        # the idea so far
+        self.request_key_exchange(addr)
+        self.request_handshake(addr)
+        self.request_update_peers(addr)
+        return True
     
-    def receive_join_network(self, addr : str, session_id : int):
-        return
+    # def receive_join_network(self, addr : str, session_id : int) -> bool:
+    #     return True
     
-    def request_keep_alive(self, addr : str):
-        return
+    def request_keep_alive(self, addr : str) -> bool:
+        return True
     
-    def receive_keep_alive(self, addr : str, session_id : int):
-        return
+    def receive_keep_alive(self, addr : str, session_id : int) -> bool:
+        return True
     
-    def send_data_message(self, addr : str):
-        return
+    def send_data_message(self, addr : str) -> bool:
+        return True
     
-    def receive_data_message(self, addr : str, session_id : int):
-        return
+    def receive_data_message(self, addr : str, session_id : int) -> bool:
+        return True
 
     def start_server(self) -> None:
         server_thread = t.Thread(target=self.receive_peers,

@@ -121,8 +121,11 @@ class TCPHybrid (Server):
     def async_wait_event(self, msg_type : int, addr : str, session_id : int) -> bool:
         event = self._get_event(msg_type, addr, session_id)
         if event:
-            event.wait(self.timeout)
-            return True
+            t_print("Asynchronously waiting for event of type: "+str(msg_type))
+            if event.wait(self.timeout):
+                return True
+            t_print("Event timed out of type: "+str(msg_type))
+        t_print("Event failed of type: "+str(msg_type))
         return False # event was not found
     
     def wait_event(self, msg_type : int, addr : str, session_id : int) -> bool:
@@ -136,7 +139,7 @@ class TCPHybrid (Server):
                 return True
             t_print("Event timed out of type: "+str(msg_type))
         else:
-            t_print("Event failed of type: "+str(msg_type))
+            
             return False # false if timeout, or event failed to be created
         
     def _send_message(self, addr : str, port : int, msg_type : int, session_id : int, payload = None) -> bool:

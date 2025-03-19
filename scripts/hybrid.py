@@ -132,9 +132,21 @@ class TCPHybrid (Server):
         return
     
     def request_update_peers(self, addr: str):
+        session_id = self._generate_session_id();
+        self._send_message(addr, self.port, MessageTypes.UPDATE_PEERS_REQ, session_id)
+        self.wait_event(MessageTypes.UPDATE_PEERS_ACK, addr, session_id)
+        self._send_message(addr, self.port, MessageTypes.UPDATE_PEERS_ACK_2)
+        self.wait_event(MessageTypes.UPDATE_PEERS_FINAL_1, addr, session_id)
+        self._send_message(addr, self.port, MessageTypes.UPDATE_PEERS_FINAL_2)
+        t_print("Update Peer Table finished!")
         return
     
     def receive_update_peers(self, addr: str, session_id : int):
+        self._send_message(addr, self.port, MessageTypes.UPDATE_PEERS_ACK)
+        self.wait_event(MessageTypes.UPDATE_PEERS_ACK_2, addr, session_id)
+        self._send_message(addr, self.port, MessageTypes.UPDATE_PEERS_FINAL_1)
+        self.wait_event(MessageTypes.UPDATE_PEERS_FINAL_2, addr, session_id)
+        t_print("Update Peer Table finished!")
         return
     
     def request_join_network(self, addr: str):
@@ -149,10 +161,10 @@ class TCPHybrid (Server):
     def receive_keep_alive(self, addr: str, session_id : int):
         return
     
-    def send_secure_message(self, addr: str):
+    def send_data_message(self, addr: str):
         return
     
-    def receive_secure_message(self, addr: str, session_id : int):
+    def receive_data_message(self, addr: str, session_id : int):
         return
 
     def start_server(self) -> None:

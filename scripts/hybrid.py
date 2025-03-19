@@ -150,16 +150,16 @@ class TCPHybrid (Server):
         session_id = self._generate_session_id();
         self._send_message(addr, self.port, MessageTypes.UPDATE_PEERS_REQ, session_id)
         self.wait_event(MessageTypes.UPDATE_PEERS_ACK, addr, session_id)
-        self._send_message(addr, self.port, MessageTypes.UPDATE_PEERS_ACK_2)
+        self._send_message(addr, self.port, MessageTypes.UPDATE_PEERS_ACK_2, session_id)
         self.wait_event(MessageTypes.UPDATE_PEERS_FINAL_1, addr, session_id)
-        self._send_message(addr, self.port, MessageTypes.UPDATE_PEERS_FINAL_2)
+        self._send_message(addr, self.port, MessageTypes.UPDATE_PEERS_FINAL_2, session_id)
         t_print("Update Peer Table finished!")
         return
     
     def receive_update_peers(self, addr: str, session_id : int):
-        self._send_message(addr, self.port, MessageTypes.UPDATE_PEERS_ACK)
+        self._send_message(addr, self.port, MessageTypes.UPDATE_PEERS_ACK, session_id)
         self.wait_event(MessageTypes.UPDATE_PEERS_ACK_2, addr, session_id)
-        self._send_message(addr, self.port, MessageTypes.UPDATE_PEERS_FINAL_1)
+        self._send_message(addr, self.port, MessageTypes.UPDATE_PEERS_FINAL_1, session_id)
         self.wait_event(MessageTypes.UPDATE_PEERS_FINAL_2, addr, session_id)
         t_print("Update Peer Table finished!")
         return

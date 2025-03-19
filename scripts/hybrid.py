@@ -63,6 +63,12 @@ class TCPHybrid (Server):
         if msg_type == MessageTypes.EXCHANGE_FINAL:
             self.set_and_check_event(msg_type, addr, session_id, data)
 
+        if msg_type == MessageTypes.JOIN_NETWORK_REQ:
+            self.receive_join_network(addr, session_id)
+        
+        if msg_type == MessageTypes.JOIN_NETWORK_ACK:
+            self.set_and_check_event(msg_type, addr, session_id, data)
+
         return
 
     def _create_client(self, addr : str, port : int) -> client.Client:

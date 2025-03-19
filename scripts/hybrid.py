@@ -51,6 +51,9 @@ class TCPHybrid (Server):
         if msg_type == MessageTypes.UPDATE_PEERS_FINAL_1:
             self.set_and_check_event(msg_type, addr, session_id, data)
 
+        if msg_type == MessageTypes.UPDATE_PEERS_FINAL_2:
+            self.set_and_check_event(msg_type, addr, session_id, data)
+
         if msg_type == MessageTypes.EXCHANGE_REQ:
             self.receive_key_exchange(addr, session_id)
 

@@ -133,9 +133,10 @@ class TCPHybrid (Server):
         if event:
             t_print("Asynchronously waiting for event of type: "+str(msg_type))
             if event.wait(self.timeout):
+                t_print("Asynchronous Event successful: "+str(msg_type))
                 return True # return without deleting event, since we only want to observe
-            t_print("Event timed out of type: "+str(msg_type))
-        t_print("Event failed of type: "+str(msg_type))
+            t_print("Asynchronous Event timed out of type: "+str(msg_type))
+        t_print("Asynchronous Event failed of type: "+str(msg_type))
         return False # event was not found
     
     def wait_event(self, msg_type : int, addr : str, session_id : int) -> bool:

@@ -48,7 +48,16 @@ class TCPHybrid (Server):
         if msg_type == MessageTypes.UPDATE_PEERS_FINAL_1:
             self.set_and_check_event(msg_type, addr, session_id, data)
 
-        if msg_type == MessageTypes.UPDATE_PEERS_FINAL_2:
+        if msg_type == MessageTypes.EXCHANGE_REQ:
+            self.receive_key_exchange(addr, session_id)
+
+        if msg_type == MessageTypes.EXCHANGE_ACK:
+            self.set_and_check_event(msg_type, addr, session_id, data)
+
+        if msg_type == MessageTypes.EXCHANGE_ACK_2:
+            self.set_and_check_event(msg_type, addr, session_id, data)
+
+        if msg_type == MessageTypes.EXCHANGE_FINAL:
             self.set_and_check_event(msg_type, addr, session_id, data)
 
         return
@@ -138,7 +147,7 @@ class TCPHybrid (Server):
         self._send_message(addr, self.port, MessageTypes.HANDSHAKE_FINAL_2, session_id)
         t_print("Handshake finished!")
 
-    def receieve_handshake(self, addr: str, session_id : int):
+    def receieve_handshake(self, addr : str, session_id : int):
         self._send_message(addr, self.port, MessageTypes.HANDSHAKE_ACK, session_id)
         self.wait_event(MessageTypes.HANDSHAKE_ACK_2, addr, session_id)
         self._send_message(addr, self.port, MessageTypes.HANDSHAKE_FINAL_1, session_id)
@@ -146,8 +155,8 @@ class TCPHybrid (Server):
         t_print("Handshake finished!")
         return
     
-    def request_update_peers(self, addr: str):
-        session_id = self._generate_session_id();
+    def request_update_peers(self, addr : str):
+        session_id = self._generate_session_id()
         self._send_message(addr, self.port, MessageTypes.UPDATE_PEERS_REQ, session_id)
         self.wait_event(MessageTypes.UPDATE_PEERS_ACK, addr, session_id)
         self._send_message(addr, self.port, MessageTypes.UPDATE_PEERS_ACK_2, session_id)
@@ -156,7 +165,7 @@ class TCPHybrid (Server):
         t_print("Update Peer Table finished!")
         return
     
-    def receive_update_peers(self, addr: str, session_id : int):
+    def receive_update_peers(self, addr : str, session_id : int):
         self._send_message(addr, self.port, MessageTypes.UPDATE_PEERS_ACK, session_id)
         self.wait_event(MessageTypes.UPDATE_PEERS_ACK_2, addr, session_id)
         self._send_message(addr, self.port, MessageTypes.UPDATE_PEERS_FINAL_1, session_id)
@@ -164,22 +173,36 @@ class TCPHybrid (Server):
         t_print("Update Peer Table finished!")
         return
     
-    def request_join_network(self, addr: str):
+    def request_key_exchange(self, addr: str):
+        session_id = self._generate_session_id()
+        self._send_message(addr, self.port, MessageTypes.EXCHANGE_REQ, session_id)
+        self.wait_event(MessageTypes.EXCHANGE_ACK, addr, session_id)
+        self._send_message(addr, self.port, MessageTypes.EXCHANGE_ACK_2, session_id)
+        self.wait_event(MessageTypes.EXCHANGE_FINAL, addr, session_id)
         return
     
-    def receive_join_network(self, addr: str, session_id : int):
+    def receive_key_exchange(self, addr : str, session_id : int):
+        self._send_message(addr, self.port, MessageTypes.EXCHANGE_ACK, session_id)
+        self.wait_event(MessageTypes.EXCHANGE_ACK_2, addr, session_id)
+        self._send_message(addr, self.port, MessageTypes.EXCHANGE_FINAL, session_id)
+        return
+
+    def request_join_network(self, addr : str):
         return
     
-    def request_keep_alive(self, addr: str):
+    def receive_join_network(self, addr : str, session_id : int):
         return
     
-    def receive_keep_alive(self, addr: str, session_id : int):
+    def request_keep_alive(self, addr : str):
         return
     
-    def send_data_message(self, addr: str):
+    def receive_keep_alive(self, addr : str, session_id : int):
         return
     
-    def receive_data_message(self, addr: str, session_id : int):
+    def send_data_message(self, addr : str):
+        return
+    
+    def receive_data_message(self, addr : str, session_id : int):
         return
 
     def start_server(self) -> None:

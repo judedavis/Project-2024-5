@@ -140,9 +140,10 @@ class TCPHybrid (Server):
 
     ## Protocol Operations
 
-    def request_handshake(self, addr : str) -> bool:
+    def request_handshake(self, addr : str, session_id : int = None) -> bool:
         # here we get our public key ready
-        session_id = self._generate_session_id()
+        if (not session_id): # if session id not provided for this interaction, generate a new one
+            session_id = self._generate_session_id()
         self._send_message(addr, self.port, MessageTypes.HANDSHAKE_REQ, session_id) # Request handshake with target (payload will be the public key)
         self.wait_event(MessageTypes.HANDSHAKE_ACK, addr, session_id) # Create an event to block until response received
         self._send_message(addr, self.port, MessageTypes.HANDSHAKE_ACK_2, session_id)
@@ -158,8 +159,9 @@ class TCPHybrid (Server):
         t_print("Handshake finished!")
         return True
     
-    def request_update_peers(self, addr : str) -> bool:
-        session_id = self._generate_session_id()
+    def request_update_peers(self, addr : str, session_id : int = None) -> bool:
+        if (not session_id):
+            session_id = self._generate_session_id()
         self._send_message(addr, self.port, MessageTypes.UPDATE_PEERS_REQ, session_id)
         self.wait_event(MessageTypes.UPDATE_PEERS_ACK, addr, session_id)
         self._send_message(addr, self.port, MessageTypes.UPDATE_PEERS_ACK_2, session_id)
@@ -176,8 +178,9 @@ class TCPHybrid (Server):
         t_print("Update Peer Table finished!")
         return True
     
-    def request_key_exchange(self, addr: str) -> bool:
-        session_id = self._generate_session_id()
+    def request_key_exchange(self, addr: str, session_id : int = None) -> bool:
+        if (not session_id):
+            session_id = self._generate_session_id()
         self._send_message(addr, self.port, MessageTypes.EXCHANGE_REQ, session_id)
         self.wait_event(MessageTypes.EXCHANGE_ACK, addr, session_id)
         self._send_message(addr, self.port, MessageTypes.EXCHANGE_ACK_2, session_id)
@@ -192,15 +195,23 @@ class TCPHybrid (Server):
         t_print("Key exchange finished!")
         return True
 
-    def request_join_network(self, addr : str) -> bool:
+    def request_join_network(self, addr : str, session_id : int = None) -> bool:
         # the idea so far
-        self.request_key_exchange(addr)
-        self.request_handshake(addr)
-        self.request_update_peers(addr)
+        if (not session_id):
+            session_id = self._generate_session_id()
+        self._send_message(addr, self.port, MessageTypes.JOIN_NETWORK_REQ, session_id)
+        self.wait_event(MessageTypes.JOIN_NETWORK_ACK, addr, session_id)
+        self.request_key_exchange(addr, session_id)
+        self.request_handshake(addr, session_id)
+        self.request_update_peers(addr, session_id)
+        t_print("Join network finished!")
         return True
     
-    # def receive_join_network(self, addr : str, session_id : int) -> bool:
-    #     return True
+    def receive_join_network(self, addr : str, session_id : int) -> bool:
+        self._send_message(addr, self.port, MessageTypes.JOIN_NETWORK_ACK, session_id)
+        self.wait_event(MessageTypes.UPDATE_PEERS_FINAL_2, addr, session_id) # wait until the update peers function is complete
+        t_print("Join network finished!")
+        return True
     
     def request_keep_alive(self, addr : str) -> bool:
         return True

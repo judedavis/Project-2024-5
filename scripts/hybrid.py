@@ -3,6 +3,7 @@ import scripts.client as client
 from scripts.server import Server
 from scripts.shared import *
 import random as r # good or bad?
+from db.peer_table import PeerTable
 
 class TCPHybrid (Server):
     def __init__(self, port=38888) -> None:
@@ -10,6 +11,7 @@ class TCPHybrid (Server):
         self.clients = []
         self.listen_events = {}
         self.timeout = 500
+        self.peer_table = PeerTable() # Init the DB
 
     # OVERRIDDEN
     def _handle_connection(self, sock : s.socket, addr : list) -> None:
@@ -86,11 +88,14 @@ class TCPHybrid (Server):
 
         return
 
+
     def _create_client(self, addr : str, port : int) -> client.Client:
         client_obj = client.Client(addr, port)
         self.clients.append(client_obj)
         return client_obj
     
+    # Event funcs
+
     def _create_event(self, msg_type : int, addr : str, session_id : int) -> t.Event:
         if (msg_type, addr, session_id) in self.listen_events:
             return self._get_event(msg_type, addr, session_id) # if event already exists, just return that
@@ -165,6 +170,8 @@ class TCPHybrid (Server):
             t_print("Event failed of type: "+str(msg_type))
             return False # false if timeout, or event failed to be created
         
+    # 
+
     def _send_message(self, addr : str, port : int, msg_type : int, session_id : int, payload = None) -> bool:
         client_obj = self._create_client(addr, port)
         if isinstance(payload, str):
@@ -277,6 +284,7 @@ class TCPHybrid (Server):
         self._send_message(addr, self.port, MessageTypes.SEND_DATA_ACK, session_id)
         t_print("Send data finished!")
         return True
+
 
     def start_server(self) -> None:
         server_thread = t.Thread(target=self.receive_peers,

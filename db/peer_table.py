@@ -2,6 +2,12 @@ import sqlite3
 from scripts.shared import *
 
 class PeerTable ():
+    """
+    Object for interacting with the DB
+    Single table DB
+    records represent known peers on the network
+    record 0 represents the host
+    """
     def __init__(self, file_path : str = "./db/peerTable") -> None:
         # Our hardcoded commands for easy reference
         self.commands = {
@@ -67,6 +73,34 @@ class PeerTable ():
         self.cursor = self.conn.cursor() # reset cursor
         return row
     
+    def get_host_key(self) -> str:
+        command  = """SELECT pubKey FROM PeerTable WHERE id=1"""
+        self.cursor.execute(command)
+        row = self.cursor.fetchone()
+        self.cursor = self.conn.cursor()
+        if row:
+            return row[0] # retrieve key from returned tuple
+        return row # return None
+    
+    def new_host(self, p_key : str,
+                last_address : str,
+                last_time : float,
+                id : int = 1) -> bool:
+        """
+        Adds a new host to the database
+        """
+        command = """INSERT INTO PeerTable(id, pubKey, lastSeenAddress, lastSeenTime) VALUES({0}, {1}, {2}, {3});""".format(id,
+                                                                                                                            self._str_format(p_key),
+                                                                                                                            self._str_format(last_address),
+                                                                                                                            last_time)
+        try:
+            self.cursor.execute(command)
+            self.conn.commit()
+            t_print("Added new user to db")
+        except sqlite3.IntegrityError:
+            t_print("host already exists.")
+            return False
+        return True
 
     def new_user(self, p_key : str,
                 last_address : str,
@@ -85,7 +119,8 @@ class PeerTable ():
             t_print("Added new user to db")
         except sqlite3.IntegrityError:
             t_print("user with public key specified already exists.")
-        return
+            return True
+        return False
     
     def exit(self) -> None:
         t_print("Closing database connection.")

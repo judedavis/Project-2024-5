@@ -1,9 +1,11 @@
 import threading as t
 import scripts.client as client
 from scripts.server import Server
+from scripts.crypt import Crpyt
 from scripts.shared import *
 import random as r # good or bad?
 from db.peer_table import PeerTable
+from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateKey, RSAPublicKey
 
 class TCPHybrid (Server):
     def __init__(self, port=38888) -> None:
@@ -12,6 +14,8 @@ class TCPHybrid (Server):
         self.listen_events = {}
         self.timeout = 500
         self.peer_table = PeerTable() # Init the DB
+        self.crypt = Crpyt(self.peer_table) # init the local keys
+        self.delimiter = bytes.fromhex('1c')
 
     # OVERRIDDEN
     def _handle_connection(self, sock : s.socket, addr : list) -> None:
@@ -57,7 +61,15 @@ class TCPHybrid (Server):
             self.set_and_check_event(msg_type, addr, session_id, data)
 
         if msg_type == MessageTypes.EXCHANGE_REQ:
-            self.receive_key_exchange(addr, session_id)
+            if data: # temp_public_key|signature(temp_public_key)
+                messages = data.split(self.delimiter)
+                temp_public_key_bytes = messages[0] # temp_public_key
+                signature = messages[1] # signature(temp_public_key)
+                temp_public_key = self.crypt.public_key_from_bytes(temp_public_key)
+                self.crypt.rsa_verify_signature(signature, temp_public_key_bytes, temp_public_key)
+            else: # no attached message
+                return # silent treatment
+            self.receive_key_exchange(addr, session_id, temp_public_key)
 
         if msg_type == MessageTypes.EXCHANGE_ACK:
             self.set_and_check_event(msg_type, addr, session_id, data)
@@ -96,7 +108,7 @@ class TCPHybrid (Server):
     
     # Event funcs
 
-    def _create_event(self, msg_type : int, addr : str, session_id : int) -> t.Event:
+    def _create_event(self, msg_type : int, addr : str, session_id : bytes) -> t.Event:
         if (msg_type, addr, session_id) in self.listen_events:
             return self._get_event(msg_type, addr, session_id) # if event already exists, just return that
         if (msg_type, addr, session_id) not in self.listen_events:
@@ -105,42 +117,42 @@ class TCPHybrid (Server):
             return self._get_event(msg_type, addr, session_id)
         return False
 
-    def _get_event(self, msg_type : int, addr : str, session_id : int) -> t.Event:
+    def _get_event(self, msg_type : int, addr : str, session_id : bytes) -> t.Event:
         if (msg_type, addr, session_id) in self.listen_events:
             return self.listen_events[(msg_type, addr, session_id)][0] # get and return the event
         return False
     
-    def _get_data(self, msg_type : int, addr : str, session_id : int) -> bytearray:
+    def _get_data(self, msg_type : int, addr : str, session_id : bytes) -> bytearray:
         if (msg_type, addr, session_id) in self.listen_events:
             return self.listen_events[(msg_type, addr, session_id)][1] # get and return the data
         return None
 
-    def _set_data(self, msg_type : int, addr : str, session_id : int, data : bytearray) -> bool:
+    def _set_data(self, msg_type : int, addr : str, session_id : bytes, data : bytearray) -> bool:
         if (msg_type, addr, session_id) in self.listen_events:
             self.listen_events[(msg_type, addr, session_id)][1] = data # set the data field
             return True
         return False
     
-    def _remove_event(self, msg_type : int, addr : str, session_id : int) -> bool:
+    def _remove_event(self, msg_type : int, addr : str, session_id : bytes) -> bool:
         if (msg_type, addr, session_id) in self.listen_events:
             self.listen_events.pop((msg_type, addr, session_id))
             return True
         return False
 
-    def _check_event(self, msg_type : int, addr : str, session_id : int) -> t.Event:
+    def _check_event(self, msg_type : int, addr : str, session_id : bytes) -> t.Event:
         if (msg_type, addr, session_id) in self.listen_events:
             self.listen_events[(msg_type, addr, session_id)][0].set() # set this event if it exists
             return self._get_event(msg_type, addr, session_id)
         return False
     
-    def set_and_check_event(self, msg_type : int, addr : str, session_id : int, data: bytearray) -> bool:
+    def set_and_check_event(self, msg_type : int, addr : str, session_id : bytes, data: bytearray) -> bool:
         if (msg_type, addr, session_id) in self.listen_events:
             self._set_data(msg_type, addr, session_id, data)
             self.listen_events[(msg_type, addr, session_id)][0].set() # set this event if it exists
             return True
         return False
     
-    def async_wait_event(self, msg_type : int, addr : str, session_id : int) -> bool:
+    def async_wait_event(self, msg_type : int, addr : str, session_id : bytes) -> bool:
         """
         Observe an event without deleting
         """
@@ -156,7 +168,7 @@ class TCPHybrid (Server):
         t_print("Asynchronous Event failed of type: "+str(msg_type))
         return False # event was not found
     
-    def wait_event(self, msg_type : int, addr : str, session_id : int) -> bool:
+    def wait_event(self, msg_type : int, addr : str, session_id : bytes) -> bool:
         event = self._create_event(msg_type, addr, session_id)
         t_print("Creating event of type: "+str(msg_type))
         if event:
@@ -169,10 +181,8 @@ class TCPHybrid (Server):
         else:
             t_print("Event failed of type: "+str(msg_type))
             return False # false if timeout, or event failed to be created
-        
-    # 
 
-    def _send_message(self, addr : str, port : int, msg_type : int, session_id : int, payload = None) -> bool:
+    def _send_message(self, addr : str, port : int, msg_type : int, session_id : bytes, payload : bytearray = None) -> bool:
         client_obj = self._create_client(addr, port)
         if isinstance(payload, str):
             payload = payload.encode('utf-8')
@@ -181,12 +191,12 @@ class TCPHybrid (Server):
         msg = create_message(payload, msg_type, session_id)
         return client_obj.send_message(msg)
         
-    def _generate_session_id(self) -> int:
-        return int.from_bytes(r.randbytes(8), 'little')
+    def _generate_session_id(self) -> bytes:
+        return r.randbytes(8)
 
     ## Protocol Operations
 
-    def request_handshake(self, addr : str, session_id : int = None) -> bool:
+    def request_handshake(self, addr : str, session_id : bytes = None) -> bool:
         # here we get our public key ready
         if (not session_id): # if session id not provided for this interaction, generate a new one
             session_id = self._generate_session_id()
@@ -195,9 +205,10 @@ class TCPHybrid (Server):
         self._send_message(addr, self.port, MessageTypes.HANDSHAKE_ACK_2, session_id)
         self.wait_event(MessageTypes.HANDSHAKE_FINAL_1, addr, session_id)
         self._send_message(addr, self.port, MessageTypes.HANDSHAKE_FINAL_2, session_id)
+        t_print("Handshake finished!")
         return True
 
-    def receieve_handshake(self, addr : str, session_id : int) -> bool:
+    def receieve_handshake(self, addr : str, session_id : bytes) -> bool:
         self._send_message(addr, self.port, MessageTypes.HANDSHAKE_ACK, session_id)
         self.wait_event(MessageTypes.HANDSHAKE_ACK_2, addr, session_id)
         self._send_message(addr, self.port, MessageTypes.HANDSHAKE_FINAL_1, session_id)
@@ -205,7 +216,7 @@ class TCPHybrid (Server):
         t_print("Handshake finished!")
         return True
     
-    def request_update_peers(self, addr : str, session_id : int = None) -> bool:
+    def request_update_peers(self, addr : str, session_id : bytes = None) -> bool:
         if (not session_id):
             session_id = self._generate_session_id()
         self._send_message(addr, self.port, MessageTypes.UPDATE_PEERS_REQ, session_id)
@@ -216,7 +227,7 @@ class TCPHybrid (Server):
         t_print("Update Peer Table finished!")
         return True
     
-    def receive_update_peers(self, addr : str, session_id : int) -> bool:
+    def receive_update_peers(self, addr : str, session_id : bytes) -> bool:
         self._send_message(addr, self.port, MessageTypes.UPDATE_PEERS_ACK, session_id)
         self.wait_event(MessageTypes.UPDATE_PEERS_ACK_2, addr, session_id)
         self._send_message(addr, self.port, MessageTypes.UPDATE_PEERS_FINAL_1, session_id)
@@ -224,24 +235,39 @@ class TCPHybrid (Server):
         t_print("Update Peer Table finished!")
         return True
     
-    def request_key_exchange(self, addr: str, session_id : int = None) -> bool:
+    def request_key_exchange(self, addr: str, session_id : bytes = None) -> bool:
         if (not session_id):
             session_id = self._generate_session_id()
-        self._send_message(addr, self.port, MessageTypes.EXCHANGE_REQ, session_id)
+        # create the temporary public and private key for the exchange
+        message = bytearray()
+        temp_private_key = Crpyt.generate_private_key()
+        temp_public_key = temp_private_key.public_key()
+        message.append(Crpyt.public_key_to_bytes(temp_public_key))
+        signature = Crpyt.rsa_generate_signature(message, temp_private_key) # sign the message thus far
+        message.append(self.delimiter)
+        message.append(signature)
+        self._send_message(addr, self.port, MessageTypes.EXCHANGE_REQ, session_id, message) # temp_public_key|signature(temp_public_key)
         self.wait_event(MessageTypes.EXCHANGE_ACK, addr, session_id)
         self._send_message(addr, self.port, MessageTypes.EXCHANGE_ACK_2, session_id)
         self.wait_event(MessageTypes.EXCHANGE_FINAL, addr, session_id)
         t_print("Key exchange finished!")
         return True
     
-    def receive_key_exchange(self, addr : str, session_id : int) -> bool:
-        self._send_message(addr, self.port, MessageTypes.EXCHANGE_ACK, session_id)
+    def receive_key_exchange(self, addr : str, session_id : bytes, temp_public_key : RSAPublicKey) -> bool:
+        # encrypt our public key with the given temporary public key
+        message = bytearray()
+        pub_bytes = self.crypt.public_key_to_bytes(self.crypt.public_key)
+        message.append(self.crypt.rsa_encrypt(pub_bytes, self.crypt.public_key))
+        signature = Crpyt.rsa_generate_signature(message, self.crypt.private_key) # sign the message thus far
+        message.append(self.delimiter)
+        message.append(signature)
+        self._send_message(addr, self.port, MessageTypes.EXCHANGE_ACK, session_id, message) # temp_public_key(public_key)|signature(temp_public_key(public_key))
         self.wait_event(MessageTypes.EXCHANGE_ACK_2, addr, session_id)
         self._send_message(addr, self.port, MessageTypes.EXCHANGE_FINAL, session_id)
         t_print("Key exchange finished!")
         return True
 
-    def request_join_network(self, addr : str, session_id : int = None) -> bool:
+    def request_join_network(self, addr : str, session_id : bytes = None) -> bool:
         # the idea so far
         if (not session_id):
             session_id = self._generate_session_id()
@@ -253,13 +279,13 @@ class TCPHybrid (Server):
         t_print("Join network finished!")
         return True
     
-    def receive_join_network(self, addr : str, session_id : int) -> bool:
+    def receive_join_network(self, addr : str, session_id : bytes) -> bool:
         self._send_message(addr, self.port, MessageTypes.JOIN_NETWORK_ACK, session_id)
         self.async_wait_event(MessageTypes.UPDATE_PEERS_FINAL_2, addr, session_id) # wait until the update peers function is complete
         t_print("Join network finished!")
         return True
     
-    def request_keep_alive(self, addr : str, session_id : int = None) -> bool:
+    def request_keep_alive(self, addr : str, session_id : bytes = None) -> bool:
         if (not session_id):
             session_id = self._generate_session_id()
         self._send_message(addr, self.port, MessageTypes.KEEP_ALIVE_REQ, session_id)
@@ -267,12 +293,12 @@ class TCPHybrid (Server):
         t_print("Keep Alive finished!")
         return True
     
-    def receive_keep_alive(self, addr : str, session_id : int) -> bool:
+    def receive_keep_alive(self, addr : str, session_id : bytes) -> bool:
         self._send_message(addr, self.port, MessageTypes.KEEP_ALIVE_ACK_1, session_id)
         t_print("Keep Alive finished!")
         return True
     
-    def request_send_data(self, addr : str, session_id : int = None) -> bool:
+    def request_send_data(self, addr : str, session_id : bytes = None) -> bool:
         if (not session_id):
             session_id = self._generate_session_id()
         self._send_message(addr, self.port, MessageTypes.SEND_DATA_REQ, session_id)
@@ -280,7 +306,7 @@ class TCPHybrid (Server):
         t_print("Send data finished!")
         return True
     
-    def receieve_send_data(self, addr : str, session_id : int) -> bool:
+    def receieve_send_data(self, addr : str, session_id : bytes) -> bool:
         self._send_message(addr, self.port, MessageTypes.SEND_DATA_ACK, session_id)
         t_print("Send data finished!")
         return True

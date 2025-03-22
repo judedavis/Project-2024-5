@@ -65,7 +65,7 @@ class TCPHybrid (Server):
                 messages = data.split(self.delimiter)
                 temp_public_key_bytes = messages[0] # temp_public_key
                 signature = messages[1] # signature(temp_public_key)
-                temp_public_key = self.crypt.public_key_from_bytes(temp_public_key)
+                temp_public_key = self.crypt.public_key_from_bytes(temp_public_key_bytes)
                 self.crypt.rsa_verify_signature(signature, temp_public_key_bytes, temp_public_key)
             else: # no attached message
                 return # silent treatment
@@ -240,12 +240,12 @@ class TCPHybrid (Server):
             session_id = self._generate_session_id()
         # create the temporary public and private key for the exchange
         message = bytearray()
-        temp_private_key = Crpyt.generate_private_key()
+        temp_private_key = self.crypt.generate_private_key()
         temp_public_key = temp_private_key.public_key()
-        message.append(Crpyt.public_key_to_bytes(temp_public_key))
-        signature = Crpyt.rsa_generate_signature(message, temp_private_key) # sign the message thus far
-        message.append(self.delimiter)
-        message.append(signature)
+        message.extend(self.crypt.public_key_to_bytes(temp_public_key))
+        signature = self.crypt.rsa_generate_signature(message, temp_private_key) # sign the message thus far
+        message.extend(self.delimiter)
+        message.extend(signature)
         self._send_message(addr, self.port, MessageTypes.EXCHANGE_REQ, session_id, message) # temp_public_key|signature(temp_public_key)
         self.wait_event(MessageTypes.EXCHANGE_ACK, addr, session_id)
         self._send_message(addr, self.port, MessageTypes.EXCHANGE_ACK_2, session_id)
@@ -257,10 +257,10 @@ class TCPHybrid (Server):
         # encrypt our public key with the given temporary public key
         message = bytearray()
         pub_bytes = self.crypt.public_key_to_bytes(self.crypt.public_key)
-        message.append(self.crypt.rsa_encrypt(pub_bytes, self.crypt.public_key))
-        signature = Crpyt.rsa_generate_signature(message, self.crypt.private_key) # sign the message thus far
-        message.append(self.delimiter)
-        message.append(signature)
+        message.extend(self.crypt.rsa_encrypt(pub_bytes, self.crypt.public_key))
+        signature = self.crypt.rsa_generate_signature(message, self.crypt.private_key) # sign the message thus far
+        message.extend(self.delimiter)
+        message.extend(signature)
         self._send_message(addr, self.port, MessageTypes.EXCHANGE_ACK, session_id, message) # temp_public_key(public_key)|signature(temp_public_key(public_key))
         self.wait_event(MessageTypes.EXCHANGE_ACK_2, addr, session_id)
         self._send_message(addr, self.port, MessageTypes.EXCHANGE_FINAL, session_id)

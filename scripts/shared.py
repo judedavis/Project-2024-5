@@ -41,7 +41,7 @@ class MessageTypes ():
     SEND_DATA_REQ = 20
     SEND_DATA_ACK = 21
 
-def create_header(payload: bytearray, msg_type: int, session_id: int) -> bytearray:
+def create_header(payload: bytearray, msg_type: int, session_id: bytes) -> bytearray:
     """
     Generates a header for an intended payload
     payload = Intended Payload - bytearray
@@ -53,11 +53,10 @@ def create_header(payload: bytearray, msg_type: int, session_id: int) -> bytearr
     header.extend(header_len)
     msg_type = msg_type.to_bytes(1, 'little')
     header.extend(msg_type)
-    session_id = session_id.to_bytes(8, 'little')
     header.extend(session_id)
     return header
 
-def create_message(data: bytearray, msg_type: int, session_id: int) -> bytearray:
+def create_message(data: bytearray, msg_type: int, session_id: bytes) -> bytearray:
     """
     Generates a message that is ready to be sent from the given payload
     data = Intended Payload - bytearray

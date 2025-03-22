@@ -32,7 +32,7 @@ class Crpyt():
             self.db.new_host(key_save, '0.0.0.0', time())
         else: # if private key was in db
             private_key = private_key.encode('utf-8') # encode str returned by DB back into bytes
-            private_key = serialization.load_pem_private_key(private_key, password=None, backend=None) # de serialise the private key PEM bytes
+            private_key = serialization.load_pem_private_key(data=private_key, password=None, backend=None) # de serialise the private key PEM bytes
         public_key = private_key.public_key() # derive the public key
         return (private_key, public_key)
     
@@ -52,7 +52,7 @@ class Crpyt():
         return bytes
     
     def private_key_from_bytes(self, bytes : bytes):
-        private_key = serialization.load_pem_private_key(bytes, password=None, backend=None)
+        private_key = serialization.load_pem_private_key(data=bytes, password=None, backend=None)
         return private_key
     
     def generate_private_key(self) -> rsa.RSAPrivateKey:
@@ -83,9 +83,9 @@ class Crpyt():
     def rsa_generate_signature(self, message : bytes, private_key : rsa.RSAPrivateKey) -> bytes:
         signature = private_key.sign(data=message,
                                      padding=padding.PSS(
-                                        mgf=padding.MGF1(self.hash_algo),
+                                        mgf=padding.MGF1(self.hash_algo()),
                                         salt_length=padding.PSS.MAX_LENGTH),
-                                     algorithm=self.hash_algo)
+                                     algorithm=self.hash_algo())
         return signature
         
     def rsa_verify_signature(self, signature : bytes, data : bytes, public_key : rsa.RSAPublicKey) -> bool:
@@ -93,9 +93,9 @@ class Crpyt():
             public_key.verify(signature=signature,
                                 data=data,
                                 padding=padding.PSS(
-                                    mgf=padding.MGF1(self.hash_algo),
+                                    mgf=padding.MGF1(self.hash_algo()),
                                     salt_length=padding.PSS.MAX_LENGTH),
-                                algorithm=self.hash_algo)
+                                algorithm=self.hash_algo())
             return True
         except InvalidSignature:
             return False

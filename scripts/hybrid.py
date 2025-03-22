@@ -61,27 +61,26 @@ class TCPHybrid (Server):
             self.set_and_check_event(msg_type, addr, session_id, data)
 
         if msg_type == MessageTypes.EXCHANGE_REQ:
-            if data: # temp_public_key|signature(temp_public_key)
+            if data: # peer_public_key|signature(temp_public_key)
                 messages = data.split(self.delimiter)
-                public_key_bytes = messages[0] # temp_public_key
-                signature = messages[1] # signature(temp_public_key)
+                public_key_bytes = bytes(messages[0]) # peer_public_key
+                signature = bytes(messages[1]) # signature(peer_public_key)
                 public_key = self.crypt.public_key_from_bytes(public_key_bytes)
                 self.crypt.rsa_verify_signature(signature, public_key_bytes, public_key)
                 self.receive_key_exchange(addr, session_id, public_key)
             else: # no attached data
-                self.receive_key_exchange(addr, session_id, None)
+                return # silent treatment
             
-
         if msg_type == MessageTypes.EXCHANGE_ACK:
-            if data: # temp_public_key|signature(temp_public_key)
+            if data: # peer_public_key|signature(temp_public_key)
                 messages = data.split(self.delimiter)
-                public_key_bytes = messages[0] # temp_public_key
-                signature = messages[1] # signature(temp_public_key)
+                public_key_bytes = bytes(messages[0]) # peer_public_key
+                signature = bytes(messages[1]) # signature(peer_public_key)
                 public_key = self.crypt.public_key_from_bytes(public_key_bytes)
                 self.crypt.rsa_verify_signature(signature, public_key_bytes, public_key)
-                self.set_and_check_event(msg_type, addr, session_id, public_key)
+                self.set_and_check_event(msg_type, addr, session_id, public_key, True)
             else: # no attached data
-                self.set_and_check_event(msg_type, addr, session_id, None)
+                self.set_and_check_event(msg_type, addr, session_id, None, False)
             
 
         if msg_type == MessageTypes.EXCHANGE_ACK_2:
@@ -123,7 +122,8 @@ class TCPHybrid (Server):
             return self._get_event(msg_type, addr, session_id) # if event already exists, just return that
         if (msg_type, addr, session_id) not in self.listen_events:
             data = None
-            self.listen_events[(msg_type, addr, session_id)] = [t.Event(), data] # create a new event for this specific connection
+            success = None
+            self.listen_events[(msg_type, addr, session_id)] = [t.Event(), data, success] # create a new event for this specific connection
             return self._get_event(msg_type, addr, session_id)
         return False
 
@@ -143,6 +143,17 @@ class TCPHybrid (Server):
             return True
         return False
     
+    def _get_success(self, msg_type : int, addr : str, session_id : bytes) -> bool:
+        if (msg_type, addr, session_id) in self.listen_events:
+            return self.listen_events[(msg_type, addr, session_id)][2]
+        return None
+    
+    def _set_success(self, msg_type : int, addr : str, session_id : bytes, success : bool) -> bool:
+        if (msg_type, addr, session_id) in self.listen_events:
+            self.listen_events[(msg_type, addr, session_id)][2] = success
+            return True
+        return False
+    
     def _remove_event(self, msg_type : int, addr : str, session_id : bytes) -> bool:
         if (msg_type, addr, session_id) in self.listen_events:
             self.listen_events.pop((msg_type, addr, session_id))
@@ -155,9 +166,10 @@ class TCPHybrid (Server):
             return self._get_event(msg_type, addr, session_id)
         return False
     
-    def set_and_check_event(self, msg_type : int, addr : str, session_id : bytes, data: any) -> bool:
+    def set_and_check_event(self, msg_type : int, addr : str, session_id : bytes, data: any, success : bool = None) -> bool:
         if (msg_type, addr, session_id) in self.listen_events:
             self._set_data(msg_type, addr, session_id, data)
+            self._set_success(msg_type, addr, session_id, data)
             self.listen_events[(msg_type, addr, session_id)][0].set() # set this event if it exists
             return True
         return False
@@ -172,6 +184,10 @@ class TCPHybrid (Server):
         if event:
             t_print("Asynchronously waiting for event of type: "+str(msg_type))
             if event.wait(self.timeout):
+                if self._get_success(msg_type, addr, session_id) == False:
+                    t_print("Event of type: "+str(msg_type)+" was unsuccessful")
+                    self._remove_event(msg_type, addr, session_id)
+                    return None
                 t_print("Asynchronous Event successful: "+str(msg_type))
                 data = self._get_data(msg_type, addr, session_id)
                 return data # return without deleting event, since we only want to observe
@@ -185,11 +201,16 @@ class TCPHybrid (Server):
         if event:
             t_print("Waiting for event of type: "+str(msg_type))
             if event.wait(self.timeout):
+                if self._get_success(msg_type, addr, session_id) == False:
+                    t_print("Event of type: "+str(msg_type)+" was unsuccessful")
+                    self._remove_event(msg_type, addr, session_id)
+                    return None
                 t_print("Event of type: "+str(msg_type)+" successful")
                 self._remove_event(msg_type, addr, session_id)
                 data = self._get_data(msg_type, addr, session_id)
                 return data
             t_print("Event timed out of type: "+str(msg_type))
+            return None
         else:
             t_print("Event failed of type: "+str(msg_type))
             return None # None if timeout, or event failed to be created
@@ -250,33 +271,29 @@ class TCPHybrid (Server):
     def request_key_exchange(self, addr: str, session_id : bytes = None) -> bool:
         if (not session_id):
             session_id = self._generate_session_id()
-        # create the temporary public and private key for the exchange
         message = bytearray()
         message.extend(self.crypt.public_key_to_bytes(self.crypt.public_key))
         signature = self.crypt.rsa_generate_signature(message, self.crypt.private_key) # sign the message thus far
         message.extend(self.delimiter)
         message.extend(signature)
-        self._send_message(addr, self.port, MessageTypes.EXCHANGE_REQ, session_id, message) # temp_public_key|signature(temp_public_key)
-        peer_public_key = self.wait_event(MessageTypes.EXCHANGE_ACK, addr, session_id)
-        if not peer_public_key:
+        self._send_message(addr, self.port, MessageTypes.EXCHANGE_REQ, session_id, message) # public_key|signature(public_key)
+        peer_public_key = self.wait_event(MessageTypes.EXCHANGE_ACK, addr, session_id) # wait for ack
+        if not peer_public_key: # if we didn't recieve any data, or if the event failed, exit
             return False
-        self._send_message(addr, self.port, MessageTypes.EXCHANGE_ACK_2, session_id)
-        self.wait_event(MessageTypes.EXCHANGE_FINAL, addr, session_id)
+        self._send_message(addr, self.port, MessageTypes.EXCHANGE_ACK_2, session_id) # send final ack
         t_print("Key exchange finished!")
         return True
     
     def receive_key_exchange(self, addr : str, session_id : bytes, peer_public_key : RSAPublicKey) -> bool:
-        if not peer_public_key:
+        if not peer_public_key: # if we didn't recieve any data, or if the event failed, exit
             return False
-        # encrypt our public key with the given temporary public key
         message = bytearray()
         message.extend(self.crypt.public_key_to_bytes(self.crypt.public_key))
         signature = self.crypt.rsa_generate_signature(message, self.crypt.private_key) # sign the message thus far
         message.extend(self.delimiter)
         message.extend(signature)
-        self._send_message(addr, self.port, MessageTypes.EXCHANGE_ACK, session_id, message) # temp_public_key(public_key)|signature(temp_public_key(public_key))
-        self.wait_event(MessageTypes.EXCHANGE_ACK_2, addr, session_id)
-        self._send_message(addr, self.port, MessageTypes.EXCHANGE_FINAL, session_id)
+        self._send_message(addr, self.port, MessageTypes.EXCHANGE_ACK, session_id, message) # public_key|signature(public_key)
+        self.wait_event(MessageTypes.EXCHANGE_ACK_2, addr, session_id) # wait for final ack
         t_print("Key exchange finished!")
         return True
 

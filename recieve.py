@@ -3,3 +3,4 @@ from scripts.shared import *
 
 h = TCPHybrid()
 h.start_server()
+h.request_keep_alive('192.168.1.100')

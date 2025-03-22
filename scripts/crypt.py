@@ -32,7 +32,7 @@ class Crpyt():
             self.db.new_host(key_save, '0.0.0.0', time())
         else: # if private key was in db
             private_key = private_key.encode('utf-8') # encode str returned by DB back into bytes
-            private_key = serialization.load_pem_private_key(private_key, password=None) # de serialise the private key PEM bytes
+            private_key = serialization.load_pem_private_key(private_key, password=None, backend=None) # de serialise the private key PEM bytes
         public_key = private_key.public_key() # derive the public key
         return (private_key, public_key)
     
@@ -52,7 +52,7 @@ class Crpyt():
         return bytes
     
     def private_key_from_bytes(self, bytes : bytes):
-        private_key = serialization.load_pem_private_key(bytes, password=None)
+        private_key = serialization.load_pem_private_key(bytes, password=None, backend=None)
         return private_key
     
     def generate_private_key(self) -> rsa.RSAPrivateKey:

@@ -186,7 +186,6 @@ class TCPHybrid (Server):
             if event.wait(self.timeout):
                 if self._get_success(msg_type, addr, session_id) == False:
                     t_print("Event of type: "+str(msg_type)+" was unsuccessful")
-                    self._remove_event(msg_type, addr, session_id)
                     return None
                 t_print("Asynchronous Event successful: "+str(msg_type))
                 data = self._get_data(msg_type, addr, session_id)
@@ -206,10 +205,11 @@ class TCPHybrid (Server):
                     self._remove_event(msg_type, addr, session_id)
                     return None
                 t_print("Event of type: "+str(msg_type)+" successful")
-                self._remove_event(msg_type, addr, session_id)
                 data = self._get_data(msg_type, addr, session_id)
+                self._remove_event(msg_type, addr, session_id)
                 return data
             t_print("Event timed out of type: "+str(msg_type))
+            self._remove_event(msg_type, addr, session_id)
             return None
         else:
             t_print("Event failed of type: "+str(msg_type))
@@ -268,26 +268,27 @@ class TCPHybrid (Server):
         t_print("Update Peer Table finished!")
         return True
     
-    def request_key_exchange(self, addr: str, session_id : bytes = None) -> bool:
+    def request_key_exchange(self, addr: str, session_id : bytes = None) -> RSAPublicKey:
         if (not session_id):
             session_id = self._generate_session_id()
-        message = bytearray()
+        message = bytearray() # create (public_key|signature(public_key))
         message.extend(self.crypt.public_key_to_bytes(self.crypt.public_key))
         signature = self.crypt.rsa_generate_signature(message, self.crypt.private_key) # sign the message thus far
         message.extend(self.delimiter)
         message.extend(signature)
         self._send_message(addr, self.port, MessageTypes.EXCHANGE_REQ, session_id, message) # public_key|signature(public_key)
         peer_public_key = self.wait_event(MessageTypes.EXCHANGE_ACK, addr, session_id) # wait for ack
+        print(peer_public_key)
         if not peer_public_key: # if we didn't recieve any data, or if the event failed, exit
-            return False
+            return None
         self._send_message(addr, self.port, MessageTypes.EXCHANGE_ACK_2, session_id) # send final ack
         t_print("Key exchange finished!")
-        return True
+        return peer_public_key
     
-    def receive_key_exchange(self, addr : str, session_id : bytes, peer_public_key : RSAPublicKey) -> bool:
+    def receive_key_exchange(self, addr : str, session_id : bytes, peer_public_key : RSAPublicKey) -> RSAPublicKey:
         if not peer_public_key: # if we didn't recieve any data, or if the event failed, exit
-            return False
-        message = bytearray()
+            return None
+        message = bytearray() # create (public_key|signature(public_key))
         message.extend(self.crypt.public_key_to_bytes(self.crypt.public_key))
         signature = self.crypt.rsa_generate_signature(message, self.crypt.private_key) # sign the message thus far
         message.extend(self.delimiter)
@@ -295,7 +296,7 @@ class TCPHybrid (Server):
         self._send_message(addr, self.port, MessageTypes.EXCHANGE_ACK, session_id, message) # public_key|signature(public_key)
         self.wait_event(MessageTypes.EXCHANGE_ACK_2, addr, session_id) # wait for final ack
         t_print("Key exchange finished!")
-        return True
+        return peer_public_key
 
     def request_join_network(self, addr : str, session_id : bytes = None) -> bool:
         # the idea so far

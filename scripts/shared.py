@@ -90,7 +90,6 @@ def recv_msg (sock : s.socket) -> tuple:
     msg_type = recv_n(sock, 1) # Get message type
     msg_type = int.from_bytes(msg_type, 'little')
     session_id= recv_n(sock, 8) # Get session ID
-    session_id = int.from_bytes(session_id, 'little')
     if msg_len == 0:
         payload = None
     else:

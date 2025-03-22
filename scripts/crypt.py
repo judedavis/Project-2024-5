@@ -72,7 +72,6 @@ class Crpyt():
             public_key = self.public_key
         if isinstance(plaintext, str):
             plaintext.encode('utf-8')
-        plaintext = plaintext.encode('utf-8')
         ciphertext = public_key.encrypt(plaintext=plaintext,
                                             padding=self.padding_algo(
                                                 mgf=padding.MGF1(algorithm=self.hash_algo()),

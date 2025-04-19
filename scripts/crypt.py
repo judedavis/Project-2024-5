@@ -101,7 +101,7 @@ class Crpyt():
         
         
     def generate_sym_key(self) -> bytes:
-        return urandom(self.sym_key_size/8)
+        return urandom(int(self.sym_key_size/8))
     
     def sym_encrypt(self, plaintext : bytes, sym_key : bytes) -> bytes:
         init_vector = urandom(16)

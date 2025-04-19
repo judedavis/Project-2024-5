@@ -32,7 +32,7 @@ class TCPHybrid (Server):
         # I would like to use a switch statement, but developing with python 3.9 (look into this)
         
         if msg_type == MessageTypes.HANDSHAKE_REQ:
-            self.clients[addr] = sock
+            self.clients[addr] = self._create_client(addr, self.port, sock)
             # public_key(sym_key)|signature(public_key(sym_key))
             messages = data.split(self.delimiter)
             encrypted_sym_key = bytes(messages[0])

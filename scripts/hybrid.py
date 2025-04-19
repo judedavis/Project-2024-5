@@ -3,14 +3,15 @@ import scripts.client as client
 from scripts.server import Server
 from scripts.crypt import Crpyt
 from scripts.shared import *
-import random as r # good or bad?
+import random as r
 from db.peer_table import PeerTable
 from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateKey, RSAPublicKey
+from time import time
 
 class TCPHybrid (Server):
     def __init__(self, port=38888) -> None:
         super().__init__(port)
-        self.clients = []
+        self.clients = {}
         self.listen_events = {}
         self.timeout = 500
         self.peer_table = PeerTable() # Init the DB
@@ -31,7 +32,13 @@ class TCPHybrid (Server):
         # I would like to use a switch statement, but developing with python 3.9 (look into this)
         
         if msg_type == MessageTypes.HANDSHAKE_REQ:
-            self.receieve_handshake(addr, session_id)
+            self.clients[addr] = sock
+            # public_key(sym_key)|signature(public_key(sym_key))
+            messages = data.split(self.delimiter)
+            encrypted_sym_key = bytes(messages[0])
+            signature = bytes(messages[1])
+            # can't do anything with this here so pass it to callback
+            self.receieve_handshake(addr, session_id, encrypted_sym_key, signature, sock)
 
         if msg_type == MessageTypes.HANDSHAKE_ACK:
             self.set_and_check_event(msg_type, addr, session_id, data)
@@ -110,10 +117,25 @@ class TCPHybrid (Server):
         return
 
 
-    def _create_client(self, addr : str, port : int) -> client.Client:
-        client_obj = client.Client(addr, port)
-        self.clients.append(client_obj)
+    def _create_client(self, addr : str, port : int, sock : s.socket = None) -> client.Client:
+        """
+        Generates a new client object, adds it to the client list
+        Returns the created client object
+        """
+        client_obj = client.Client(addr, port, sock)
+        self.clients[addr] = client_obj
         return client_obj
+    
+    def _close_client(self, addr : str) -> bool:
+        """
+        Shuts down a client object and removes it from client list
+        Returns True if successful, False if no client object exists for the given address
+        """
+        if self.clients.__contains__(addr):
+            self.clients[addr].exit() # shut down the connection if applicable
+            self.clients.pop(addr) # remove socket from clients
+            return True
+        return False
     
     # Event funcs
 
@@ -169,7 +191,7 @@ class TCPHybrid (Server):
     def set_and_check_event(self, msg_type : int, addr : str, session_id : bytes, data: any, success : bool = None) -> bool:
         if (msg_type, addr, session_id) in self.listen_events:
             self._set_data(msg_type, addr, session_id, data)
-            self._set_success(msg_type, addr, session_id, data)
+            self._set_success(msg_type, addr, session_id, success)
             self.listen_events[(msg_type, addr, session_id)][0].set() # set this event if it exists
             return True
         return False
@@ -216,16 +238,30 @@ class TCPHybrid (Server):
             return None # None if timeout, or event failed to be created
 
     def _send_message(self, addr : str, port : int, msg_type : int, session_id : bytes, payload : bytearray = None) -> bool:
-        client_obj = self._create_client(addr, port)
-        if isinstance(payload, str):
+        """
+        Sends data
+        """
+        if self.clients.__contains__(addr):
+            client_obj = self.clients[addr] # retrieve client_obj
+        else:
+            client_obj = self._create_client(addr, port) # create a new client_obj
+            self.clients[addr] = client_obj
+        if isinstance(payload, str): # accept string payloads, but convert them to bytes
             payload = payload.encode('utf-8')
-        if not payload:
+        if not payload: # if no payload is given, create empty bytearray obj
             payload = bytearray()
         msg = create_message(payload, msg_type, session_id)
         return client_obj.send_message(msg)
         
     def _generate_session_id(self) -> bytes:
         return r.randbytes(8)
+    
+    def _generate_identifier(self) -> str:
+        for i in range(0,5): # would use a while loop but it makes me nervous, 5 tries should be enough?
+            identifier = r.randbytes(16)
+            identifier = identifier.hex()
+            if not self.peer_table.check_if_identifier_exists(identifier): # check that the identifier isnt already in use
+                return identifier
 
     ## Protocol Operations
 
@@ -233,7 +269,14 @@ class TCPHybrid (Server):
         # here we get our public key ready
         if (not session_id): # if session id not provided for this interaction, generate a new one
             session_id = self._generate_session_id()
-        self._send_message(addr, self.port, MessageTypes.HANDSHAKE_REQ, session_id) # Request handshake with target (payload will be the public key)
+        message = bytearray() # public_key(sym_key)|signature(public_key(sym_key))
+        # generate symmetric key
+        sym_key = self.crypt.generate_sym_key()
+        # encrypt the key
+        message.extend(self.crypt.rsa_encrypt(sym_key, self.crypt.public_key))
+        # sign the message thus far
+        message.extend(self.crypt.rsa_generate_signature(message, self.crypt.private_key))
+        self._send_message(addr, self.port, MessageTypes.HANDSHAKE_REQ, session_id, message) # public_key(sym_key)|signature(public_key(sym_key))
         self.wait_event(MessageTypes.HANDSHAKE_ACK, addr, session_id) # Create an event to block until response received
         self._send_message(addr, self.port, MessageTypes.HANDSHAKE_ACK_2, session_id)
         self.wait_event(MessageTypes.HANDSHAKE_FINAL_1, addr, session_id)
@@ -241,7 +284,8 @@ class TCPHybrid (Server):
         t_print("Handshake finished!")
         return True
 
-    def receieve_handshake(self, addr : str, session_id : bytes) -> bool:
+    def receieve_handshake(self, addr : str, session_id : bytes, sym_key : bytes) -> bool:
+
         self._send_message(addr, self.port, MessageTypes.HANDSHAKE_ACK, session_id)
         self.wait_event(MessageTypes.HANDSHAKE_ACK_2, addr, session_id)
         self._send_message(addr, self.port, MessageTypes.HANDSHAKE_FINAL_1, session_id)
@@ -282,6 +326,8 @@ class TCPHybrid (Server):
         if not peer_public_key: # if we didn't recieve any data, or if the event failed, exit
             return None
         self._send_message(addr, self.port, MessageTypes.EXCHANGE_ACK_2, session_id) # send final ack
+        peer_public_key_str = self.crypt.public_key_to_bytes(peer_public_key).decode('utf-8') # suitable for PeerTable
+        self.peer_table.new_user(peer_public_key_str, self._generate_identifier(), addr, time()) # add peer to peer table
         t_print("Key exchange finished!")
         return peer_public_key
     
@@ -295,6 +341,8 @@ class TCPHybrid (Server):
         message.extend(signature)
         self._send_message(addr, self.port, MessageTypes.EXCHANGE_ACK, session_id, message) # public_key|signature(public_key)
         self.wait_event(MessageTypes.EXCHANGE_ACK_2, addr, session_id) # wait for final ack
+        peer_public_key_str = self.crypt.public_key_to_bytes(peer_public_key).decode('utf-8') # suitable for PeerTable
+        self.peer_table.new_user(peer_public_key_str, self._generate_identifier(), addr, time()) # add peer to peer to table
         t_print("Key exchange finished!")
         return peer_public_key
 
@@ -350,8 +398,8 @@ class TCPHybrid (Server):
         self.threads[server_thread.ident].start()
 
     def exit(self) -> None:
-        self.stop() # stop the server
-        for socket in self.clients:
-            socket.exit()
-        
+        self.sock.shutdown(s.SHUT_RDWR)
+        self.sock.close() # stop the server
+        for client in self.clients:
+            client.exit()
         

@@ -3,8 +3,8 @@ import socket as s
 import threading as t
 
 class Client (SockObj):
-    def __init__(self, addr, port) -> None:
-        super().__init__(addr, port, True) # init SockObj
+    def __init__(self, addr, port, sock = None) -> None:
+        super().__init__(addr, port, True, sock) # init SockObj
         # No need to bind for client
 
     def send_message(self, data) -> bool:
@@ -28,7 +28,6 @@ class Client (SockObj):
                 return False
             total_sent += sent
         t_print("Message sent to: "+self.addr+", "+str(self.port))
-        self.exit() # close the socket
         return True
     
     def exit(self) -> None:

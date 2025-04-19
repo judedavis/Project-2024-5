@@ -7,9 +7,13 @@ class SockObj ():
     addr = ipv4 - String
     port = desired TCP Port - Int
     so_reuse = Optional socket reuse flag (for debugging) - Boolean
+    socket = can be supplied to use an already created socket
     """
-    def __init__(self, addr : str, port : int, so_reuse : bool) -> None:
-        self.sock = s.socket(s.AF_INET, s.SOCK_STREAM)
+    def __init__(self, addr : str, port : int, so_reuse : bool, socket : s.socket = None) -> None:
+        if socket:
+            self.sock = socket
+        else:
+            self.sock = s.socket(s.AF_INET, s.SOCK_STREAM) # create new socket if none is supplied
         if so_reuse:
             self.sock.setsockopt(s.SOL_SOCKET, s.SO_REUSEADDR, 1) # So address can be immediately reused without waiting for the dead socket to expire
         self.addr = addr

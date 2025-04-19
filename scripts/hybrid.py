@@ -284,7 +284,7 @@ class TCPHybrid (Server):
         t_print("Handshake finished!")
         return True
 
-    def receieve_handshake(self, addr : str, session_id : bytes, sym_key : bytes) -> bool:
+    def receieve_handshake(self, addr : str, session_id : bytes, sym_key : bytes, signature : bytes) -> bool:
 
         self._send_message(addr, self.port, MessageTypes.HANDSHAKE_ACK, session_id)
         self.wait_event(MessageTypes.HANDSHAKE_ACK_2, addr, session_id)

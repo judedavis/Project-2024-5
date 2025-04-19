@@ -38,7 +38,7 @@ class TCPHybrid (Server):
             encrypted_sym_key = bytes(messages[0])
             signature = bytes(messages[1])
             # can't do anything with this here so pass it to callback
-            self.receieve_handshake(addr, session_id, encrypted_sym_key, signature, sock)
+            self.receieve_handshake(addr, session_id, encrypted_sym_key, signature)
 
         if msg_type == MessageTypes.HANDSHAKE_ACK:
             self.set_and_check_event(msg_type, addr, session_id, data)

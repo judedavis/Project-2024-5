@@ -5,7 +5,8 @@ import threading as t
 class Client (SockObj):
     def __init__(self, addr, port, sock = None) -> None:
         super().__init__(addr, port, True, sock) # init SockObj
-        self.sock.connect((self.addr, self.port)) # connect to remote endpoint
+        if not sock: # if no premade socket was supplied
+            self.sock.connect((self.addr, self.port)) # connect to remote endpoint
         # No need to bind for client
 
     def send_message(self, data) -> bool:

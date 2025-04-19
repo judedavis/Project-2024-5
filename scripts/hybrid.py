@@ -20,6 +20,7 @@ class TCPHybrid (Server):
 
     # OVERRIDDEN
     def _handle_connection(self, sock : s.socket, addr : list) -> None:
+        print(addr)
         addr = addr[0]
         msg_len, msg_type, session_id, data = recv_msg(sock)
 
@@ -243,11 +244,7 @@ class TCPHybrid (Server):
         """
         Sends data
         """
-        if self.clients.__contains__(addr):
-            client_obj = self.clients[addr] # retrieve client_obj
-        else:
-            client_obj = self._create_client(addr, port) # create a new client_obj
-            self.clients[addr] = client_obj
+        client_obj = self._create_client(addr, port) # create a new client_obj
         if isinstance(payload, str): # accept string payloads, but convert them to bytes
             payload = payload.encode('utf-8')
         if not payload: # if no payload is given, create empty bytearray obj

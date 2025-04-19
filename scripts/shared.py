@@ -10,14 +10,17 @@ class SockObj ():
     socket = can be supplied to use an already created socket
     """
     def __init__(self, addr : str, port : int, so_reuse : bool, socket : s.socket = None) -> None:
-        if socket:
+        if socket: # if a pre connected socket is supplied
             self.sock = socket
-        else:
-            self.sock = s.socket(s.AF_INET, s.SOCK_STREAM) # create new socket if none is supplied
+            addr = self.sock.getpeername() # retrieve the remote endpoint address/ port
+            self.addr = addr[0]
+            self.port = addr[1]
+        else: # otherwise we need to create out own
+            self.sock = s.socket(s.AF_INET, s.SOCK_STREAM)
+            self.addr = addr
+            self.port = port
         if so_reuse:
             self.sock.setsockopt(s.SOL_SOCKET, s.SO_REUSEADDR, 1) # So address can be immediately reused without waiting for the dead socket to expire
-        self.addr = addr
-        self.port = port
 
     def bind(self) -> None:
          self.sock.bind((self.addr, self.port))

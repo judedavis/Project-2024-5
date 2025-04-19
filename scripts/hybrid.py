@@ -22,6 +22,7 @@ class TCPHybrid (Server):
     def _handle_connection(self, sock : s.socket, addr : list) -> None:
         print(addr)
         addr = addr[0]
+        port = addr[1]
         msg_len, msg_type, session_id, data = recv_msg(sock)
 
         if data:

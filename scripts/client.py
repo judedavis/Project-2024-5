@@ -5,6 +5,7 @@ import threading as t
 class Client (SockObj):
     def __init__(self, addr, port, sock = None) -> None:
         super().__init__(addr, port, True, sock) # init SockObj
+        self.sock.connect((self.addr, self.port)) # make sure the connection is live before we start sending data
         # No need to bind for client
 
     def send_message(self, data) -> bool:
@@ -19,7 +20,6 @@ class Client (SockObj):
             data = bytearray()
         message_len = len(data)
         t_print("Attempting connection to: "+self.addr+", "+str(self.port))
-        self.sock.connect((self.addr, self.port))
         total_sent = 0
         while total_sent < message_len:
             sent = self.sock.send(data[total_sent:])

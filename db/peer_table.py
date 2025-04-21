@@ -53,42 +53,44 @@ class PeerTable ():
     
     def get_user_s_key(self, identifier : str) -> str:
         command = """SELECT symKey FROM PeerTable WHERE identifier = {0}""".format(self._str_format(identifier))
-        self.cursor.execute(command)
-        row = self.cursor.fetchone()[0]
-        self.cursor = self.conn.cursor() # reset cursor
+        cursor = self.conn.cursor() # create cursor
+        cursor.execute(command)
+        row = cursor.fetchone()[0]
         return row
 
     def update_user_last_address(self, identifier : str, last_address : str) -> bool:
         command = """UPDATE PeerTable SET lastSeenAddress={0} WHERE identifier = {1}""".format(self._str_format(last_address), self._str_format(identifier))
-        self.cursor.execute(command)
+        cursor = self.conn.cursor() # create cursor
+        cursor.execute(command)
         self.conn.commit()
         return True
     
     def get_user_last_address(self, identifier : str) -> str:
         command = """SELECT lastSeenAddress FROM PeerTable WHERE identifier = {0}""".format(self._str_format(identifier))
-        self.cursor.execute(command)
-        row = self.cursor.fetchone()[0]
-        self.cursor = self.conn.cursor() # reset cursor
+        cursor = self.conn.cursor() # create cursor
+        cursor.execute(command)
+        row = cursor.fetchone()[0]
         return row
     
     def update_user_last_time(self, identifier : str, last_time : float) -> bool:
         command = """UPDATE PeerTable SET lastSeenTime={0} WHERE identifier = {1}""".format(last_time, self._str_format(identifier))
-        self.cursor.execute(command)
+        cursor = self.conn.cursor() # create cursor
+        cursor.execute(command)
         self.conn.commit()
         return True
     
     def get_user_last_time(self, identifier : str) -> float:
         command = """SELECT lastSeenTime FROM PeerTable WHERE identifier = {0}""".format(self._str_format(identifier))
-        self.cursor.execute(command)
-        row = self.cursor.fetchone()[0]
-        self.cursor = self.conn.cursor() # reset cursor
+        cursor = self.conn.cursor() # create cursor
+        cursor.execute(command)
+        row = cursor.fetchone()[0]
         return row
     
     def get_host_key(self) -> str:
         command  = """SELECT pubKey FROM PeerTable WHERE id=1"""
-        self.cursor.execute(command)
-        row = self.cursor.fetchone()
-        self.cursor = self.conn.cursor()
+        cursor = self.conn.cursor() # create cursor
+        cursor.execute(command)
+        row = cursor.fetchone()
         if row:
             return row[0] # retrieve key from returned tuple
         return row # return None
@@ -105,7 +107,8 @@ class PeerTable ():
                                                                                                                             self._str_format(last_address),
                                                                                                                             last_time)
         try:
-            self.cursor.execute(command)
+            cursor = self.conn.cursor() # create cursor
+            cursor.execute(command)
             self.conn.commit()
             t_print("Added new user to db")
         except sqlite3.IntegrityError:
@@ -127,7 +130,8 @@ class PeerTable ():
                                                                                                                                         self._str_format(last_address),
                                                                                                                                         last_time)
         try:
-            self.cursor.execute(command)
+            cursor = self.conn.cursor() # create cursor
+            cursor.execute(command)
             self.conn.commit()
             t_print("Added new user to db")
         except sqlite3.IntegrityError:

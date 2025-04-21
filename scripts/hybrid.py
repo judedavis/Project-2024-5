@@ -29,7 +29,7 @@ class TCPHybrid (Server):
     def _handle_connection(self, sock : s.socket, addr : list) -> None:
         print(addr)
         addr = addr[0]
-        port = addr[1]
+        #port = addr[1]
         msg_len, msg_type, session_id, data = recv_msg(sock)
 
         if data:
@@ -273,7 +273,7 @@ class TCPHybrid (Server):
     ## Protocol Operations
 
     def request_handshake(self, addr : str, session_id : bytes = None) -> bool:
-        self._create_client(addr, self.port) # create a new client for the intended address
+        client_obj = self._create_client(addr, self.port) # create a new client for the intended address
         # here we get our public key ready
         if (not session_id): # if session id not provided for this interaction, generate a new one
             session_id = self._generate_session_id()
@@ -285,6 +285,7 @@ class TCPHybrid (Server):
         # sign the message thus far
         message.extend(self.crypt.rsa_generate_signature(message, self.crypt.private_key))
         self._send_message(addr, self.port, MessageTypes.HANDSHAKE_REQ, session_id, message) # public_key(sym_key)|signature(public_key(sym_key))
+        t_print(recv_msg(client_obj.sock))
         self.wait_event(MessageTypes.HANDSHAKE_ACK, addr, session_id) # Create an event to block until response received
         self._send_message(addr, self.port, MessageTypes.HANDSHAKE_ACK_2, session_id)
         self.wait_event(MessageTypes.HANDSHAKE_FINAL_1, addr, session_id)

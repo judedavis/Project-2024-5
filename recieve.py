@@ -3,4 +3,4 @@ from scripts.shared import *
 
 h = TCPHybrid()
 h.start_server()
-h.request_handshake('94.10.74.251')
+h.request_handshake('guadalajara.ddnsking.com')

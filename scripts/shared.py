@@ -17,14 +17,22 @@ class SockObj ():
             self.port = addr[1]
         else: # otherwise we need to create out own
             self.sock = s.socket(s.AF_INET, s.SOCK_STREAM)
-            self.addr = addr
-            self.port = port
+            info = self.resolve_host(addr, port)
+            self.addr = info[0]
+            self.port = info[1]
         if so_reuse:
             self.sock.setsockopt(s.SOL_SOCKET, s.SO_REUSEADDR, 1) # So address can be immediately reused without waiting for the dead socket to expire
         t_print(self.sock)
 
     def bind(self) -> None:
          self.sock.bind((self.addr, self.port))
+
+    def resolve_host(self, addr, port) -> tuple:
+        """
+        Resolves given domain addresses to their IPs
+        """
+        info = s.getaddrinfo(addr, port, s.AF_INET)
+        return info[0][4]
 
 class MessageTypes ():
     HANDSHAKE_REQ = 1

@@ -12,7 +12,6 @@ class SockObj ():
     def __init__(self, addr : str, port : int, so_reuse : bool, socket : s.socket = None) -> None:
         if socket: # if a pre connected socket is supplied
             self.sock = socket
-            t_print(self.sock)
             addr = self.sock.getpeername() # retrieve the remote endpoint address/ port
             self.addr = addr[0]
             self.port = addr[1]
@@ -22,6 +21,7 @@ class SockObj ():
             self.port = port
         if so_reuse:
             self.sock.setsockopt(s.SOL_SOCKET, s.SO_REUSEADDR, 1) # So address can be immediately reused without waiting for the dead socket to expire
+        t_print(self.sock)
 
     def bind(self) -> None:
          self.sock.bind((self.addr, self.port))

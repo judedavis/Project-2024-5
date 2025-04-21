@@ -132,8 +132,8 @@ class TCPHybrid (Server):
         Generates a new client object, adds it to the client list
         Returns the created client object
         """
-        if self.clients.__contains__(addr): # no need to create a new connection if one already exists
-            client_obj =  self.clients[addr]
+        if self.clients.__contains__(addr) and not sock: # if client already exists, and no socket was supplied
+            client_obj = self.clients[addr]
             return client_obj
         client_obj = client.Client(addr, port, sock)
         self.clients[addr] = client_obj

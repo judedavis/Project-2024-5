@@ -10,6 +10,7 @@ class PeerTable ():
     """
     def __init__(self, file_path : str = "./db/peerTable") -> None:
         # Our hardcoded commands for easy reference
+        self.file_path = file_path
         self.commands = {
             "create_table": """CREATE TABLE IF NOT EXISTS PeerTable (id INTEGER PRIMARY KEY AUTOINCREMENT, identifier TEXT UNIQUE, pubKey TEXT UNIQUE, symKey TEXT, lastSeenAddress TEXT, lastSeenTime FLOAT);""",
         }
@@ -23,6 +24,7 @@ class PeerTable ():
         # create peertable table if doesn't exist
         cursor.execute(self.commands["create_table"])
         self.conn.commit()
+        self.conn.close()
         return
     
     def _str_format(self, string : str) -> str:
@@ -46,51 +48,65 @@ class PeerTable ():
     ## Getters and Setters
     def update_user_s_key(self, identifier : str, new_s_key : str) -> bool:
         command = """UPDATE PeerTable SET symKey = {0} WHERE identifier = {1}""".format(self._str_format(new_s_key), self._str_format(identifier))
-        cursor = self.conn.cursor() # create cursor
+        conn = sqlite3.connect(self.file_path)
+        cursor = conn.cursor() # create cursor
         cursor.execute(command)
-        self.conn.commit()
+        conn.commit()
+        conn.close()
         return True
     
     def get_user_s_key(self, identifier : str) -> str:
         command = """SELECT symKey FROM PeerTable WHERE identifier = {0}""".format(self._str_format(identifier))
-        cursor = self.conn.cursor() # create cursor
+        conn = sqlite3.connect(self.file_path)
+        cursor = conn.cursor() # create cursor
         cursor.execute(command)
         row = cursor.fetchone()[0]
+        conn.close()
         return row
 
     def update_user_last_address(self, identifier : str, last_address : str) -> bool:
         command = """UPDATE PeerTable SET lastSeenAddress={0} WHERE identifier = {1}""".format(self._str_format(last_address), self._str_format(identifier))
-        cursor = self.conn.cursor() # create cursor
+        conn = sqlite3.connect(self.file_path)
+        cursor = conn.cursor() # create cursor
         cursor.execute(command)
-        self.conn.commit()
+        conn.commit()
+        conn.close()
         return True
     
     def get_user_last_address(self, identifier : str) -> str:
         command = """SELECT lastSeenAddress FROM PeerTable WHERE identifier = {0}""".format(self._str_format(identifier))
-        cursor = self.conn.cursor() # create cursor
+        conn = sqlite3.connect(self.file_path)
+        cursor = conn.cursor() # create cursor
         cursor.execute(command)
         row = cursor.fetchone()[0]
+        conn.close()
         return row
     
     def update_user_last_time(self, identifier : str, last_time : float) -> bool:
         command = """UPDATE PeerTable SET lastSeenTime={0} WHERE identifier = {1}""".format(last_time, self._str_format(identifier))
-        cursor = self.conn.cursor() # create cursor
+        conn = sqlite3.connect(self.file_path)
+        cursor = conn.cursor() # create cursor
         cursor.execute(command)
-        self.conn.commit()
+        conn.commit()
+        conn.close()
         return True
     
     def get_user_last_time(self, identifier : str) -> float:
         command = """SELECT lastSeenTime FROM PeerTable WHERE identifier = {0}""".format(self._str_format(identifier))
-        cursor = self.conn.cursor() # create cursor
+        conn = sqlite3.connect(self.file_path)
+        cursor = conn.cursor() # create cursor
         cursor.execute(command)
         row = cursor.fetchone()[0]
+        conn.close()
         return row
     
     def get_host_key(self) -> str:
         command  = """SELECT pubKey FROM PeerTable WHERE id=1"""
-        cursor = self.conn.cursor() # create cursor
+        conn = sqlite3.connect(self.file_path)
+        cursor = conn.cursor() # create cursor
         cursor.execute(command)
         row = cursor.fetchone()
+        conn.close()
         if row:
             return row[0] # retrieve key from returned tuple
         return row # return None
@@ -107,9 +123,11 @@ class PeerTable ():
                                                                                                                             self._str_format(last_address),
                                                                                                                             last_time)
         try:
-            cursor = self.conn.cursor() # create cursor
+            conn = sqlite3.connect(self.file_path)
+            cursor = conn.cursor() # create cursor
             cursor.execute(command)
-            self.conn.commit()
+            conn.commit()
+            conn.close()
             t_print("Added new user to db")
         except sqlite3.IntegrityError:
             t_print("host already exists.")
@@ -130,17 +148,14 @@ class PeerTable ():
                                                                                                                                         self._str_format(last_address),
                                                                                                                                         last_time)
         try:
-            cursor = self.conn.cursor() # create cursor
+            conn = sqlite3.connect(self.file_path)
+            cursor = conn.cursor() # create cursor
             cursor.execute(command)
-            self.conn.commit()
+            conn.commit()
+            conn.close()
             t_print("Added new user to db")
         except sqlite3.IntegrityError:
             t_print("user with public key specified already exists.")
             return True
         return False
     
-    def exit(self) -> None:
-        t_print("Closing database connection.")
-        self.conn.close()
-        return
-        

@@ -294,26 +294,31 @@ class TCPHybrid (Server):
         # sign the message thus far
         message.extend(self.crypt.rsa_generate_signature(message, self.crypt.private_key))
 
+        # send HANDSHAKE_REQ and wait for HANDSHAKE_ACK
         self._create_event(MessageTypes.HANDSHAKE_ACK, addr, session_id) # create event
         self._send_message(addr, self.port, MessageTypes.HANDSHAKE_REQ, session_id, message) # public_key(sym_key)|signature(public_key(sym_key))
         self._client_response(addr) # wait for response
         self.wait_event(MessageTypes.HANDSHAKE_ACK, addr, session_id) # wait on event
 
+        # send HANDSHAKE_ACK_2 and wait for HANDSHAKE_FINAL_1
         self._create_event(MessageTypes.HANDSHAKE_FINAL_1, addr, session_id)
         self._send_message(addr, self.port, MessageTypes.HANDSHAKE_ACK_2, session_id)
         self._client_response(addr)
         self.wait_event(MessageTypes.HANDSHAKE_FINAL_1, addr, session_id)
-
+        
+        # send HANDSHAKE_FINAL_2
         self._send_message(addr, self.port, MessageTypes.HANDSHAKE_FINAL_2, session_id)
         t_print("Handshake finished!")
         return True
 
     def receieve_handshake(self, addr : str, session_id : bytes, sym_key : bytes, signature : bytes) -> bool:
+        # send HANDSHAKE_ACK and wait for HANDSHAKE_ACK_2
         self._create_event(MessageTypes.HANDSHAKE_ACK_2, addr, session_id)
         self._send_message(addr, self.port, MessageTypes.HANDSHAKE_ACK, session_id)
         self._client_response(addr)
         self.wait_event(MessageTypes.HANDSHAKE_ACK_2, addr, session_id)
 
+        # send HANDSHAKE_FINAL_1 and wait for HANDSHAKE_FINAL_2
         self._create_event(MessageTypes.HANDSHAKE_FINAL_2, addr, session_id)
         self._send_message(addr, self.port, MessageTypes.HANDSHAKE_FINAL_1, session_id)
         self._client_response(addr)

@@ -37,7 +37,7 @@ class PeerTable ():
         command = """SELECT identifier FROM PeerTable WHERE identifier = {0}""".format(self._str_format(identifier))
         cursor = self.conn.cursor() # create cursor
         cursor.execute(command)
-        row = self.cursor.fetchone()
+        row = cursor.fetchone()
         
         if row:
             return True

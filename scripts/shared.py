@@ -12,6 +12,7 @@ class SockObj ():
     def __init__(self, addr : str, port : int, so_reuse : bool, socket : s.socket = None) -> None:
         if socket: # if a pre connected socket is supplied
             self.sock = socket
+            t_print(self.sock)
             addr = self.sock.getpeername() # retrieve the remote endpoint address/ port
             self.addr = addr[0]
             self.port = addr[1]

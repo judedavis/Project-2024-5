@@ -37,10 +37,11 @@ class PeerTable ():
     
     def check_if_identifier_exists(self, identifier : str) -> bool:
         command = """SELECT identifier FROM PeerTable WHERE identifier = {0}""".format(self._str_format(identifier))
-        cursor = self.conn.cursor() # create cursor
+        conn = sqlite3.connect(self.file_path)
+        cursor = conn.cursor() # create cursor
         cursor.execute(command)
         row = cursor.fetchone()
-        
+        conn.close()
         if row:
             return True
         return False

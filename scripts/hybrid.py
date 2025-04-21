@@ -137,6 +137,15 @@ class TCPHybrid (Server):
         self.clients[addr] = client_obj
         return client_obj
     
+    def _client_response(self, addr):
+        """
+        Retrieves corrosponding client object and calls handle connection on it
+        Allowing the client object to recieve data on it's connection
+        """
+        if self.clients.__contains__(addr):
+            client_obj = self.clients[addr]
+            self._handle_connection(client_obj.sock, [client_obj.addr, client_obj.port])
+    
     def _close_client(self, addr : str) -> bool:
         """
         Shuts down a client object and removes it from client list
@@ -285,9 +294,10 @@ class TCPHybrid (Server):
         # sign the message thus far
         message.extend(self.crypt.rsa_generate_signature(message, self.crypt.private_key))
         self._send_message(addr, self.port, MessageTypes.HANDSHAKE_REQ, session_id, message) # public_key(sym_key)|signature(public_key(sym_key))
-        t_print(recv_msg(client_obj.sock))
+        self._client_response(addr)
         self.wait_event(MessageTypes.HANDSHAKE_ACK, addr, session_id) # Create an event to block until response received
         self._send_message(addr, self.port, MessageTypes.HANDSHAKE_ACK_2, session_id)
+        self._client_response(addr)
         self.wait_event(MessageTypes.HANDSHAKE_FINAL_1, addr, session_id)
         self._send_message(addr, self.port, MessageTypes.HANDSHAKE_FINAL_2, session_id)
         t_print("Handshake finished!")
@@ -296,8 +306,10 @@ class TCPHybrid (Server):
     def receieve_handshake(self, addr : str, session_id : bytes, sym_key : bytes, signature : bytes) -> bool:
 
         self._send_message(addr, self.port, MessageTypes.HANDSHAKE_ACK, session_id)
+        self._client_response(addr)
         self.wait_event(MessageTypes.HANDSHAKE_ACK_2, addr, session_id)
         self._send_message(addr, self.port, MessageTypes.HANDSHAKE_FINAL_1, session_id)
+        self._client_response(addr)
         self.wait_event(MessageTypes.HANDSHAKE_FINAL_2, addr, session_id)
         t_print("Handshake finished!")
         return True

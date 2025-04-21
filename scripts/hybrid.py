@@ -29,7 +29,7 @@ class TCPHybrid (Server):
     def _handle_connection(self, sock : s.socket, addr : list) -> None:
         print(addr)
         addr = addr[0]
-        #port = addr[1]
+        port = addr[1]
         msg_len, msg_type, session_id, data = recv_msg(sock)
 
         if data:
@@ -41,7 +41,7 @@ class TCPHybrid (Server):
         # I would like to use a switch statement, but developing with python 3.9 (look into this)
         
         if msg_type == MessageTypes.HANDSHAKE_REQ:
-            self._create_client(addr, self.port, sock) # init a new client with the active socket
+            self._create_client(addr, port, sock) # init a new client with the active socket
             # public_key(sym_key)|signature(public_key(sym_key))
             messages = data.split(self.delimiter)
             encrypted_sym_key = bytes(messages[0])
@@ -77,8 +77,8 @@ class TCPHybrid (Server):
             self.set_and_check_event(msg_type, addr, session_id, data)
 
         if msg_type == MessageTypes.EXCHANGE_REQ:
-            self._create_client(addr, self.port, sock) # init a new client with the active socket
             if data: # peer_public_key|signature(temp_public_key)
+                self._create_client(addr, port, sock) # init a new client with the active socket
                 messages = data.split(self.delimiter)
                 public_key_bytes = bytes(messages[0]) # peer_public_key
                 signature = bytes(messages[1]) # signature(peer_public_key)
@@ -268,7 +268,7 @@ class TCPHybrid (Server):
         try:
             client_obj = self.clients[addr]
         except KeyError:
-            t_print('Error - No client object exists for the intended address')
+            t_print('Error - No client object exists for the intended address '+addr)
             return False
         if isinstance(payload, str): # accept string payloads, but convert them to bytes
             payload = payload.encode('utf-8')

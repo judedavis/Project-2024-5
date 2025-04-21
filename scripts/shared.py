@@ -111,6 +111,7 @@ def recv_msg (sock : s.socket) -> tuple:
         payload = None
     else:
         payload = recv_n(sock, msg_len) # Get rest of message
+    t_print("receieved some data")
     return (msg_len, msg_type, session_id, payload)
 
 def t_print(string : str) -> None:

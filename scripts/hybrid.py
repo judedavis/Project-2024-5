@@ -1,6 +1,6 @@
 """
 TODO:
-- Test if can establish two way communication either by changing how we handle sockets, or by not being behind a NAT (ie using phone data as router)
+-
 - Salvage the code portion of the report, turning it into a implementation header
 - Do more literature review (read some papers dawg)
 """
@@ -213,7 +213,9 @@ class TCPHybrid (Server):
             self._set_data(msg_type, addr, session_id, data)
             self._set_success(msg_type, addr, session_id, success)
             self.listen_events[(msg_type, addr, session_id)][0].set() # set this event if it exists
+            t_print("event set and checked successfully")
             return True
+        t_print("event not set and checked successfully")
         return False
     
     def async_wait_event(self, msg_type : int, addr : str, session_id : bytes) -> any:
@@ -278,11 +280,18 @@ class TCPHybrid (Server):
             identifier = identifier.hex()
             if not self.peer_table.check_if_identifier_exists(identifier): # check that the identifier isnt already in use
                 return identifier
+            
+    def _send_and_wait(self, addr : str, port : int, send_type : int, wait_type : int, session_id : bytes, message : bytes = None) -> any:
+        self._create_event(wait_type, addr, session_id)
+        self._send_message(addr, port, send_type, session_id, message)
+        self._client_response(addr)
+        data = self.wait_event(wait_type, addr, session_id)
+        return data
 
     ## Protocol Operations
 
     def request_handshake(self, addr : str, session_id : bytes = None) -> bool:
-        client_obj = self._create_client(addr, self.port) # create a new client for the intended address
+        self._create_client(addr, self.port) # create a new client for the intended address
         # here we get our public key ready
         if (not session_id): # if session id not provided for this interaction, generate a new one
             session_id = self._generate_session_id()
@@ -295,16 +304,20 @@ class TCPHybrid (Server):
         message.extend(self.crypt.rsa_generate_signature(message, self.crypt.private_key))
 
         # send HANDSHAKE_REQ and wait for HANDSHAKE_ACK
-        self._create_event(MessageTypes.HANDSHAKE_ACK, addr, session_id) # create event
-        self._send_message(addr, self.port, MessageTypes.HANDSHAKE_REQ, session_id, message) # public_key(sym_key)|signature(public_key(sym_key))
-        self._client_response(addr) # wait for response
-        self.wait_event(MessageTypes.HANDSHAKE_ACK, addr, session_id) # wait on event
+        self._send_and_wait(addr,
+                            self.port,
+                            MessageTypes.HANDSHAKE_REQ, # send
+                            MessageTypes.HANDSHAKE_ACK, # receieve
+                            session_id,
+                            message)
 
         # send HANDSHAKE_ACK_2 and wait for HANDSHAKE_FINAL_1
-        self._create_event(MessageTypes.HANDSHAKE_FINAL_1, addr, session_id)
-        self._send_message(addr, self.port, MessageTypes.HANDSHAKE_ACK_2, session_id)
-        self._client_response(addr)
-        self.wait_event(MessageTypes.HANDSHAKE_FINAL_1, addr, session_id)
+        self._send_and_wait(addr,
+                            self.port,
+                            MessageTypes.HANDSHAKE_ACK_2,
+                            MessageTypes.HANDSHAKE_FINAL_1,
+                            session_id,
+                            message)
         
         # send HANDSHAKE_FINAL_2
         self._send_message(addr, self.port, MessageTypes.HANDSHAKE_FINAL_2, session_id)
@@ -313,39 +326,59 @@ class TCPHybrid (Server):
 
     def receieve_handshake(self, addr : str, session_id : bytes, sym_key : bytes, signature : bytes) -> bool:
         # send HANDSHAKE_ACK and wait for HANDSHAKE_ACK_2
-        self._create_event(MessageTypes.HANDSHAKE_ACK_2, addr, session_id)
-        self._send_message(addr, self.port, MessageTypes.HANDSHAKE_ACK, session_id)
-        self._client_response(addr)
-        self.wait_event(MessageTypes.HANDSHAKE_ACK_2, addr, session_id)
+        self._send_and_wait(addr,
+                            self.port,
+                            MessageTypes.HANDSHAKE_ACK,
+                            MessageTypes.HANDSHAKE_ACK_2,
+                            session_id)
 
         # send HANDSHAKE_FINAL_1 and wait for HANDSHAKE_FINAL_2
-        self._create_event(MessageTypes.HANDSHAKE_FINAL_2, addr, session_id)
-        self._send_message(addr, self.port, MessageTypes.HANDSHAKE_FINAL_1, session_id)
-        self._client_response(addr)
-        self.wait_event(MessageTypes.HANDSHAKE_FINAL_2, addr, session_id)
+        self._send_and_wait(addr,
+                            self.port,
+                            MessageTypes.HANDSHAKE_FINAL_1,
+                            MessageTypes.HANDSHAKE_FINAL_2, 
+                            session_id)
         t_print("Handshake finished!")
         return True
     
     def request_update_peers(self, addr : str, session_id : bytes = None) -> bool:
         if (not session_id):
             session_id = self._generate_session_id()
-        self._send_message(addr, self.port, MessageTypes.UPDATE_PEERS_REQ, session_id)
-        self.wait_event(MessageTypes.UPDATE_PEERS_ACK, addr, session_id)
-        self._send_message(addr, self.port, MessageTypes.UPDATE_PEERS_ACK_2, session_id)
-        self.wait_event(MessageTypes.UPDATE_PEERS_FINAL_1, addr, session_id)
+        self._send_and_wait(addr,
+                            self.port,
+                            MessageTypes.UPDATE_PEERS_REQ,
+                            MessageTypes.UPDATE_PEERS_ACK,
+                            session_id)
+        self._send_and_wait(addr,
+                            self.port,
+                            MessageTypes.UPDATE_PEERS_ACK_2,
+                            MessageTypes.UPDATE_PEERS_FINAL_1,
+                            session_id)
         self._send_message(addr, self.port, MessageTypes.UPDATE_PEERS_FINAL_2, session_id)
         t_print("Update Peer Table finished!")
         return True
     
     def receive_update_peers(self, addr : str, session_id : bytes) -> bool:
-        self._send_message(addr, self.port, MessageTypes.UPDATE_PEERS_ACK, session_id)
-        self.wait_event(MessageTypes.UPDATE_PEERS_ACK_2, addr, session_id)
-        self._send_message(addr, self.port, MessageTypes.UPDATE_PEERS_FINAL_1, session_id)
-        self.wait_event(MessageTypes.UPDATE_PEERS_FINAL_2, addr, session_id)
+        self._send_and_wait(addr,
+                            self.port,
+                            MessageTypes.UPDATE_PEERS_ACK,
+                            MessageTypes.UPDATE_PEERS_ACK_2,
+                            session_id)
+        self._send_and_wait(addr,
+                            self.port,
+                            MessageTypes.UPDATE_PEERS_FINAL_1,
+                            MessageTypes.UPDATE_PEERS_FINAL_2,
+                            session_id)
         t_print("Update Peer Table finished!")
         return True
     
     def request_key_exchange(self, addr: str, session_id : bytes = None) -> RSAPublicKey:
+        """
+        Request a key exchange with a peer
+        addr = Address of peer
+        session_id = id of the session
+        Returns an RSA Public key retrieved from the peer
+        """
         if (not session_id):
             session_id = self._generate_session_id()
         message = bytearray() # create (public_key|signature(public_key))
@@ -353,8 +386,12 @@ class TCPHybrid (Server):
         signature = self.crypt.rsa_generate_signature(message, self.crypt.private_key) # sign the message thus far
         message.extend(self.delimiter)
         message.extend(signature)
-        self._send_message(addr, self.port, MessageTypes.EXCHANGE_REQ, session_id, message) # public_key|signature(public_key)
-        peer_public_key = self.wait_event(MessageTypes.EXCHANGE_ACK, addr, session_id) # wait for ack
+        peer_public_key = self._send_and_wait(addr,
+                            self.port,
+                            MessageTypes.EXCHANGE_REQ, # public_key|signature(public_key)
+                            MessageTypes.EXCHANGE_ACK, # wait for ack
+                            session_id,
+                            message)
         print(peer_public_key)
         if not peer_public_key: # if we didn't recieve any data, or if the event failed, exit
             return None
@@ -365,6 +402,13 @@ class TCPHybrid (Server):
         return peer_public_key
     
     def receive_key_exchange(self, addr : str, session_id : bytes, peer_public_key : RSAPublicKey) -> RSAPublicKey:
+        """
+        Handles an incoming key exchange
+        addr = address of the initiating peer
+        session_id = id of the session
+        peer_public_key = the RSA Public key sent by the initiator
+        Returns the RSA Public key retreived from the initiator
+        """
         if not peer_public_key: # if we didn't recieve any data, or if the event failed, exit
             return None
         message = bytearray() # create (public_key|signature(public_key))
@@ -372,8 +416,12 @@ class TCPHybrid (Server):
         signature = self.crypt.rsa_generate_signature(message, self.crypt.private_key) # sign the message thus far
         message.extend(self.delimiter)
         message.extend(signature)
-        self._send_message(addr, self.port, MessageTypes.EXCHANGE_ACK, session_id, message) # public_key|signature(public_key)
-        self.wait_event(MessageTypes.EXCHANGE_ACK_2, addr, session_id) # wait for final ack
+        self._send_and_wait(addr,
+                            self.port,
+                            MessageTypes.EXCHANGE_ACK, # public_key|signature(public_key)
+                            MessageTypes.EXCHANGE_ACK_2, # wait for final ack
+                            session_id,
+                            message)
         peer_public_key_str = self.crypt.public_key_to_bytes(peer_public_key).decode('utf-8') # suitable for PeerTable
         self.peer_table.new_user(peer_public_key_str, self._generate_identifier(), addr, time()) # add peer to peer to table
         t_print("Key exchange finished!")

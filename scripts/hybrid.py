@@ -77,6 +77,7 @@ class TCPHybrid (Server):
             self.set_and_check_event(msg_type, addr, session_id, data)
 
         if msg_type == MessageTypes.EXCHANGE_REQ:
+            self._create_client(addr, self.port, sock) # init a new client with the active socket
             if data: # peer_public_key|signature(temp_public_key)
                 messages = data.split(self.delimiter)
                 public_key_bytes = bytes(messages[0]) # peer_public_key
@@ -133,6 +134,7 @@ class TCPHybrid (Server):
         """
         if self.clients.__contains__(addr): # no need to create a new connection if one already exists
             client_obj =  self.clients[addr]
+            return client_obj
         client_obj = client.Client(addr, port, sock)
         self.clients[addr] = client_obj
         return client_obj
@@ -263,7 +265,11 @@ class TCPHybrid (Server):
         """
         Sends data
         """
-        client_obj = self.clients[addr]
+        try:
+            client_obj = self.clients[addr]
+        except KeyError:
+            t_print('Error - No client object exists for the intended address')
+            return False
         if isinstance(payload, str): # accept string payloads, but convert them to bytes
             payload = payload.encode('utf-8')
         if not payload: # if no payload is given, create empty bytearray obj
@@ -291,7 +297,6 @@ class TCPHybrid (Server):
     ## Protocol Operations
 
     def request_handshake(self, addr : str, session_id : bytes = None) -> bool:
-        self._create_client(addr, self.port) # create a new client for the intended address
         # here we get our public key ready
         if (not session_id): # if session id not provided for this interaction, generate a new one
             session_id = self._generate_session_id()

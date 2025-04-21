@@ -4,4 +4,5 @@ from scripts.shared import *
 h = TCPHybrid()
 h.start_server()
 addr, port = resolve_host('guadalajara.ddnsking.com', 38888)
-h.request_handshake(addr)
+h._create_client(addr, port)
+h.request_key_exchange(addr)

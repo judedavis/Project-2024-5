@@ -18,10 +18,10 @@ class PeerTable ():
             self.conn = sqlite3.connect(file_path)
         except sqlite3.OperationalError:
             t_print("PeerTable: Failed to open DB")
-        self.cursor = self.conn.cursor()
+        cursor = self.conn.cursor()
 
         # create peertable table if doesn't exist
-        self.cursor.execute(self.commands["create_table"])
+        cursor.execute(self.commands["create_table"])
         self.conn.commit()
         return
     
@@ -35,9 +35,10 @@ class PeerTable ():
     
     def check_if_identifier_exists(self, identifier : str) -> bool:
         command = """SELECT identifier FROM PeerTable WHERE identifier = {0}""".format(self._str_format(identifier))
-        self.cursor.execute(command)
+        cursor = self.conn.cursor() # create cursor
+        cursor.execute(command)
         row = self.cursor.fetchone()
-        self.cursor = self.conn.cursor() # reset cursor
+        
         if row:
             return True
         return False
@@ -45,7 +46,8 @@ class PeerTable ():
     ## Getters and Setters
     def update_user_s_key(self, identifier : str, new_s_key : str) -> bool:
         command = """UPDATE PeerTable SET symKey = {0} WHERE identifier = {1}""".format(self._str_format(new_s_key), self._str_format(identifier))
-        self.cursor.execute(command)
+        cursor = self.conn.cursor() # create cursor
+        cursor.execute(command)
         self.conn.commit()
         return True
     

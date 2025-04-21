@@ -400,8 +400,12 @@ class TCPHybrid (Server):
         print(peer_public_key)
         if not peer_public_key: # if we didn't recieve any data, or if the event failed, exit
             return None
-        self._send_message(addr, self.port, MessageTypes.EXCHANGE_ACK_2, session_id) # send final ack
-        peer_public_key_str = self.crypt.public_key_to_bytes(peer_public_key).decode('utf-8') # suitable for PeerTable
+        self._send_and_wait(addr,
+                            self.port,
+                            MessageTypes.EXCHANGE_ACK_2, # send ack
+                            MessageTypes.EXCHANGE_FINAL, # wait for final ack
+                            session_id) 
+        peer_public_key_str = self.crypt.public_key_to_bytes(peer_public_key).decode('utf-8') # convert to suitable format for PeerTable
         self.peer_table.new_user(peer_public_key_str, self._generate_identifier(), addr, time()) # add peer to peer table
         t_print("Key exchange finished!")
         return peer_public_key
@@ -424,10 +428,11 @@ class TCPHybrid (Server):
         self._send_and_wait(addr,
                             self.port,
                             MessageTypes.EXCHANGE_ACK, # public_key|signature(public_key)
-                            MessageTypes.EXCHANGE_ACK_2, # wait for final ack
+                            MessageTypes.EXCHANGE_ACK_2, # wait for ack
                             session_id,
                             message)
-        peer_public_key_str = self.crypt.public_key_to_bytes(peer_public_key).decode('utf-8') # suitable for PeerTable
+        self._send_message(addr, self.port, MessageTypes.EXCHANGE_FINAL, session_id) # send final ack
+        peer_public_key_str = self.crypt.public_key_to_bytes(peer_public_key).decode('utf-8') # convert to suitable format for PeerTable
         self.peer_table.new_user(peer_public_key_str, self._generate_identifier(), addr, time()) # add peer to peer to table
         t_print("Key exchange finished!")
         return peer_public_key

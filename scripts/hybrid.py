@@ -1,3 +1,10 @@
+"""
+TODO:
+- Test if can establish two way communication either by changing how we handle sockets, or by not being behind a NAT (ie using phone data as router)
+- Salvage the code portion of the report, turning it into a implementation header
+- Do more literature review (read some papers dawg)
+"""
+
 import threading as t
 import scripts.client as client
 from scripts.server import Server
@@ -34,7 +41,7 @@ class TCPHybrid (Server):
         # I would like to use a switch statement, but developing with python 3.9 (look into this)
         
         if msg_type == MessageTypes.HANDSHAKE_REQ:
-            self.clients[addr] = self._create_client(addr, self.port, sock)
+            self._create_client(addr, self.port, sock) # init a new client with the active socket
             # public_key(sym_key)|signature(public_key(sym_key))
             messages = data.split(self.delimiter)
             encrypted_sym_key = bytes(messages[0])
@@ -125,7 +132,7 @@ class TCPHybrid (Server):
         Returns the created client object
         """
         if self.clients.__contains__(addr): # no need to create a new connection if one already exists
-            return self.clients[addr]
+            client_obj =  self.clients[addr]
         client_obj = client.Client(addr, port, sock)
         self.clients[addr] = client_obj
         return client_obj
@@ -245,7 +252,7 @@ class TCPHybrid (Server):
         """
         Sends data
         """
-        client_obj = self._create_client(addr, port) # create a new client_obj
+        client_obj = self.clients[addr]
         if isinstance(payload, str): # accept string payloads, but convert them to bytes
             payload = payload.encode('utf-8')
         if not payload: # if no payload is given, create empty bytearray obj
@@ -266,6 +273,7 @@ class TCPHybrid (Server):
     ## Protocol Operations
 
     def request_handshake(self, addr : str, session_id : bytes = None) -> bool:
+        self._create_client(addr, self.port) # create a new client for the intended address
         # here we get our public key ready
         if (not session_id): # if session id not provided for this interaction, generate a new one
             session_id = self._generate_session_id()

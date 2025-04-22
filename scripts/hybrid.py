@@ -47,7 +47,7 @@ class TCPHybrid (Server):
             peer_ident = bytes(messages[0]) # the peer's identifier
             encrypted_sym_key = bytes(messages[1]) # symmetric key encrypted with our public key
             signature = bytes(messages[2]) # signature generated with the peer's private key
-            signed_message = b''.join(peer_ident, self.delimiter, encrypted_sym_key) # ident|public_key(sym_key)
+            signed_message = b''.join([peer_ident, self.delimiter, encrypted_sym_key]) # ident|public_key(sym_key)
             peer_pubkey = self.peer_table.get_user_p_key(peer_ident)
             peer_pubkey = self.crypt.public_str_to_key(peer_pubkey) # retrieve the peer's public key for verification of the signature
             self.crypt.rsa_verify_signature(signature, signed_message, peer_pubkey)
@@ -286,7 +286,7 @@ class TCPHybrid (Server):
             payload = bytearray()
         msg = create_message(payload, msg_type, session_id)
         # unencrypted messages are preceeded by an empty byte
-        msg = b''.join(bytes(1), self.delimiter, msg) # 00|msg
+        msg = b''.join([bytes(1), self.delimiter, msg]) # 00|msg
         return client_obj.send_message(msg)
     
     def _receive_message(self, sock : s.socket):
@@ -335,12 +335,12 @@ class TCPHybrid (Server):
             payload = bytearray()
         msg = create_message(payload, msg_type, session_id)
         encrypted_msg, init_vector = self.crypt.sym_encrypt(msg, sym_key) # 4 byte unsigned length allows for a very large encrypted message size (much larger than we'll ever need)
-        encrypted_msg = b''.join(init_vector, encrypted_msg)
+        encrypted_msg = b''.join([init_vector, encrypted_msg])
         encrypted_msg_len = len(encrypted_msg).to_bytes(4, 'little')
         ident = self.peer_table.get_host_identifier() # get ident
         ident = bytes.fromhex(ident) # convert to bytes
         # two delimiters preceeds any data to tell the receiever this message is encrypted
-        encrypted_msg = b''.join(self.delimiter, self.delimiter, ident, encrypted_msg_len, encrypted_msg) # ||ident.message_len.(init_vector|sym_key(msg))
+        encrypted_msg = b''.join([self.delimiter, self.delimiter, ident, encrypted_msg_len, encrypted_msg]) # ||ident.message_len.(init_vector|sym_key(msg))
         return client_obj.send_message(encrypted_msg)
 
     def _generate_session_id(self) -> bytes:

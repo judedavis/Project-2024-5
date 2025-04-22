@@ -476,7 +476,6 @@ class TCPHybrid (Server):
         message.extend(self.delimiter) # |
         message.extend(self.crypt.public_key_to_bytes(self.crypt.public_key)) # public_key
         signature = self.crypt.rsa_generate_signature(message, self.crypt.private_key) # sign the message thus far
-        t_print("asdf: "+self.crypt.public_key_to_bytes(self.crypt.public_key).hex())
         message.extend(self.delimiter) # |
         message.extend(signature) # signature(ident|public_key)
         peer_ident, peer_public_key = self._send_and_wait(addr,
@@ -513,6 +512,7 @@ class TCPHybrid (Server):
         message.extend(bytes.fromhex(ident)) # ident
         message.extend(self.delimiter) # |
         message.extend(self.crypt.public_key_to_bytes(self.crypt.public_key)) # public_key
+        t_print("asdf: "+self.crypt.public_key_to_bytes(self.crypt.public_key).hex())
         signature = self.crypt.rsa_generate_signature(message, self.crypt.private_key) # sign the message thus far
         message.extend(self.delimiter) # |
         message.extend(signature) # signature(ident|public_key)

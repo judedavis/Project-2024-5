@@ -47,6 +47,15 @@ class PeerTable ():
         return False
         
     ## Getters and Setters
+    def get_user_p_key(self, identifier : str) -> bool:
+        command = """SELECT pubKey FROM PeerTable WHERE identifier = {0}""".format(self._str_format(identifier))
+        conn = sqlite3.connect(self.file_path)
+        cursor = conn.cursor() # create cursor
+        cursor.execute(command)
+        row = cursor.fetchone()[0]
+        conn.close()
+        return row
+
     def update_user_s_key(self, identifier : str, new_s_key : str) -> bool:
         command = """UPDATE PeerTable SET symKey = {0} WHERE identifier = {1}""".format(self._str_format(new_s_key), self._str_format(identifier))
         conn = sqlite3.connect(self.file_path)
@@ -101,6 +110,17 @@ class PeerTable ():
         conn.close()
         return row
     
+    def get_host_identifier(self) -> str:
+        command = """SELECT identifier FROM PeerTable WHERE id=1"""
+        conn = sqlite3.connect(self.file_path)
+        cursor = conn.cursor() # create cursor
+        cursor.execute(command)
+        row = cursor.fetchone()
+        conn.close()
+        if row:
+            return row[0]
+        return row
+    
     def get_host_key(self) -> str:
         command  = """SELECT pubKey FROM PeerTable WHERE id=1"""
         conn = sqlite3.connect(self.file_path)
@@ -112,14 +132,16 @@ class PeerTable ():
             return row[0] # retrieve key from returned tuple
         return row # return None
     
-    def new_host(self, p_key : str,
+    def new_host(self, ident : str,
+                p_key : str,
                 last_address : str,
                 last_time : float,
                 id : int = 1) -> bool:
         """
         Adds a new host to the database
         """
-        command = """INSERT INTO PeerTable(id, identifier, pubKey, lastSeenAddress, lastSeenTime) VALUES({0}, 'host', {1}, {2}, {3});""".format(id,
+        command = """INSERT INTO PeerTable(id, identifier, pubKey, lastSeenAddress, lastSeenTime) VALUES({0}, {1}, {2}, {3}, {4});""".format(id,
+                                                                                                                            self._str_format(ident),    
                                                                                                                             self._str_format(p_key),
                                                                                                                             self._str_format(last_address),
                                                                                                                             last_time)

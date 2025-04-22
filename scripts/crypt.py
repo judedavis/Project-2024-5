@@ -6,6 +6,7 @@ from os import urandom
 from db.peer_table import PeerTable
 from scripts.shared import t_print
 from time import time
+import random as r
 
 class Crpyt():
     def __init__(self, db : PeerTable) -> None:
@@ -17,8 +18,7 @@ class Crpyt():
         self.private_key = rsa.RSAPrivateKey # set type for linting
         self.public_key = rsa.RSAPublicKey
         self.private_key, self.public_key = self.load_host_keys()
-        
-        return
+        self.identifier = self.db.get_host_identifier()
     
     def load_host_keys(self) -> tuple:
         # host private key stored in public key column of db at record 0 for retrieval
@@ -29,12 +29,20 @@ class Crpyt():
                                                     format=serialization.PrivateFormat.PKCS8,
                                                     encryption_algorithm=serialization.NoEncryption()) # not encrypting, BAD!
             key_save = key_save.decode('utf-8')
-            self.db.new_host(key_save, '0.0.0.0', time())
+            ident = self._generate_identifier()
+            self.db.new_host(ident, key_save, '0.0.0.0', time())
         else: # if private key was in db
             private_key = private_key.encode('utf-8') # encode str returned by DB back into bytes
             private_key = serialization.load_pem_private_key(data=private_key, password=None, backend=None) # de serialise the private key PEM bytes
         public_key = private_key.public_key() # derive the public key
         return (private_key, public_key)
+    
+    def _generate_identifier(self) -> str:
+        for i in range(0,5): # would use a while loop but it makes me nervous, 5 tries should be enough?
+            identifier = r.randbytes(16)
+            identifier = identifier.hex()
+            if not self.db.check_if_identifier_exists(identifier): # check that the identifier isnt already in use
+                return identifier
     
     def public_key_to_bytes(self, public_key : rsa.RSAPublicKey) -> bytes:
         bytes = public_key.public_bytes(encoding=serialization.Encoding.PEM,

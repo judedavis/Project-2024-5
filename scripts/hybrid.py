@@ -46,6 +46,7 @@ class TCPHybrid (Server):
             messages = data.split(self.delimiter)
             encrypted_sym_key = bytes(messages[0])
             signature = bytes(messages[1])
+            self.crypt.rsa_verify_signature(signature, encrypted_sym_key, )
             # can't do anything with this here so pass it to callback
             self.receieve_handshake(addr, session_id, encrypted_sym_key, signature)
 
@@ -80,22 +81,26 @@ class TCPHybrid (Server):
             if data: # peer_public_key|signature(temp_public_key)
                 self._create_client(addr, port, sock) # init a new client with the active socket
                 messages = data.split(self.delimiter)
-                public_key_bytes = bytes(messages[0]) # peer_public_key
-                signature = bytes(messages[1]) # signature(peer_public_key)
+                ident = bytes(messages[0]) # identifier
+                public_key_bytes = bytes(messages[1]) # peer_public_key
+                signature = bytes(messages[2]) # signature(ident|peer_public_key)
+                signed_message = bytes.join([ident, self.delimiter, public_key_bytes]) # ident|peer_public_key
                 public_key = self.crypt.public_key_from_bytes(public_key_bytes)
-                self.crypt.rsa_verify_signature(signature, public_key_bytes, public_key)
-                self.receive_key_exchange(addr, session_id, public_key)
+                self.crypt.rsa_verify_signature(signature, signed_message, public_key)
+                self.receive_key_exchange(addr, session_id, public_key, ident.hex())
             else: # no attached data
                 return # silent treatment
             
         if msg_type == MessageTypes.EXCHANGE_ACK:
-            if data: # peer_public_key|signature(temp_public_key)
+            if data: # ident|peer_public_key|signature(ident|temp_public_key)
                 messages = data.split(self.delimiter)
-                public_key_bytes = bytes(messages[0]) # peer_public_key
-                signature = bytes(messages[1]) # signature(peer_public_key)
+                ident = bytes(messages[0])
+                public_key_bytes = bytes(messages[1]) # peer_public_key
+                signature = bytes(messages[2]) # signature(peer_public_key)
+                signed_message = bytes.join(ident, self.delimiter, public_key_bytes)
                 public_key = self.crypt.public_key_from_bytes(public_key_bytes)
-                self.crypt.rsa_verify_signature(signature, public_key_bytes, public_key)
-                self.set_and_check_event(msg_type, addr, session_id, public_key, True)
+                self.crypt.rsa_verify_signature(signature, signed_message, public_key)
+                self.set_and_check_event(msg_type, addr, session_id, (ident, public_key), True)
             else: # no attached data
                 self.set_and_check_event(msg_type, addr, session_id, None, False)
             
@@ -279,13 +284,6 @@ class TCPHybrid (Server):
         
     def _generate_session_id(self) -> bytes:
         return r.randbytes(8)
-    
-    def _generate_identifier(self) -> str:
-        for i in range(0,5): # would use a while loop but it makes me nervous, 5 tries should be enough?
-            identifier = r.randbytes(16)
-            identifier = identifier.hex()
-            if not self.peer_table.check_if_identifier_exists(identifier): # check that the identifier isnt already in use
-                return identifier
             
     def _send_and_wait(self, addr : str, port : int, send_type : int, wait_type : int, session_id : bytes, message : bytes = None) -> any:
         self._create_event(wait_type, addr, session_id)
@@ -330,6 +328,7 @@ class TCPHybrid (Server):
         return True
 
     def receieve_handshake(self, addr : str, session_id : bytes, sym_key : bytes, signature : bytes) -> bool:
+        
         # send HANDSHAKE_ACK and wait for HANDSHAKE_ACK_2
         self._send_and_wait(addr,
                             self.port,
@@ -386,14 +385,17 @@ class TCPHybrid (Server):
         """
         if (not session_id):
             session_id = self._generate_session_id()
-        message = bytearray() # create (public_key|signature(public_key))
-        message.extend(self.crypt.public_key_to_bytes(self.crypt.public_key))
+        message = bytearray() # create (ident|public_key|signature(ident|public_key))
+        ident = self.peer_table.get_host_identifier()
+        message.extend(bytes.fromhex(ident)) # ident
+        message.extend(self.delimiter) # |
+        message.extend(self.crypt.public_key_to_bytes(self.crypt.public_key)) # public_key
         signature = self.crypt.rsa_generate_signature(message, self.crypt.private_key) # sign the message thus far
-        message.extend(self.delimiter)
-        message.extend(signature)
-        peer_public_key = self._send_and_wait(addr,
+        message.extend(self.delimiter) # |
+        message.extend(signature) # signature(ident|public_key)
+        peer_ident, peer_public_key = self._send_and_wait(addr,
                             self.port,
-                            MessageTypes.EXCHANGE_REQ, # public_key|signature(public_key)
+                            MessageTypes.EXCHANGE_REQ, # ident|public_key|signature(ident|public_key)
                             MessageTypes.EXCHANGE_ACK, # wait for ack
                             session_id,
                             message)
@@ -406,11 +408,11 @@ class TCPHybrid (Server):
                             MessageTypes.EXCHANGE_FINAL, # wait for final ack
                             session_id) 
         peer_public_key_str = self.crypt.public_key_to_bytes(peer_public_key).decode('utf-8') # convert to suitable format for PeerTable
-        self.peer_table.new_user(peer_public_key_str, self._generate_identifier(), addr, time()) # add peer to peer table
+        self.peer_table.new_user(peer_public_key_str, peer_ident, addr, time()) # add peer to peer table
         t_print("Key exchange finished!")
         return peer_public_key
     
-    def receive_key_exchange(self, addr : str, session_id : bytes, peer_public_key : RSAPublicKey) -> RSAPublicKey:
+    def receive_key_exchange(self, addr : str, session_id : bytes, peer_public_key : RSAPublicKey, peer_ident : str) -> RSAPublicKey:
         """
         Handles an incoming key exchange
         addr = address of the initiating peer
@@ -420,20 +422,23 @@ class TCPHybrid (Server):
         """
         if not peer_public_key: # if we didn't recieve any data, or if the event failed, exit
             return None
-        message = bytearray() # create (public_key|signature(public_key))
-        message.extend(self.crypt.public_key_to_bytes(self.crypt.public_key))
+        message = bytearray() # create (ident|public_key|signature(ident|public_key))
+        ident = self.peer_table.get_host_identifier()
+        message.extend(bytes.fromhex(ident)) # ident
+        message.extend(self.delimiter) # |
+        message.extend(self.crypt.public_key_to_bytes(self.crypt.public_key)) # public_key
         signature = self.crypt.rsa_generate_signature(message, self.crypt.private_key) # sign the message thus far
-        message.extend(self.delimiter)
-        message.extend(signature)
+        message.extend(self.delimiter) # |
+        message.extend(signature) # signature(ident|public_key)
         self._send_and_wait(addr,
                             self.port,
-                            MessageTypes.EXCHANGE_ACK, # public_key|signature(public_key)
+                            MessageTypes.EXCHANGE_ACK, # ident|public_key|signature(ident|public_key)
                             MessageTypes.EXCHANGE_ACK_2, # wait for ack
                             session_id,
                             message)
         self._send_message(addr, self.port, MessageTypes.EXCHANGE_FINAL, session_id) # send final ack
         peer_public_key_str = self.crypt.public_key_to_bytes(peer_public_key).decode('utf-8') # convert to suitable format for PeerTable
-        self.peer_table.new_user(peer_public_key_str, self._generate_identifier(), addr, time()) # add peer to peer to table
+        self.peer_table.new_user(peer_public_key_str, peer_ident, addr, time()) # add peer to peer to table
         t_print("Key exchange finished!")
         return peer_public_key
 

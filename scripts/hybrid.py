@@ -84,10 +84,12 @@ class TCPHybrid (Server):
         if msg_type == MessageTypes.EXCHANGE_REQ:
             if data: # expected message = ident|public_key|signature(ident|public_key)
                 self._create_client(addr, port, sock) # init a new client with the active socket
-                messages = data.split(self.delimiter)
-                ident = bytes(messages[0]) # identifier
-                public_key_bytes = bytes(messages[1]) # peer_public_key
-                signature = bytes(messages[2:]) # signature(ident|peer_public_key)
+                ident, tmp, data = data.partition(self.delimiter) # identifier
+                ident = bytes(ident)
+                public_key_bytes, tmp, data = data.partition(self.delimiter) # peer_public_key
+                public_key_bytes = bytes(public_key_bytes) 
+                signature, tmp, data = data.partition(self.delimiter)
+                signature = bytes(signature) # signature(ident|peer_public_key)
                 signed_message = b''.join([ident, self.delimiter, public_key_bytes]) # ident|peer_public_key
                 public_key = self.crypt.public_key_from_bytes(public_key_bytes)
                 self.crypt.rsa_verify_signature(signature, signed_message, public_key)
@@ -100,7 +102,7 @@ class TCPHybrid (Server):
                 messages = data.split(self.delimiter)
                 ident = bytes(messages[0])
                 public_key_bytes = bytes(messages[1]) # peer_public_key
-                signature = bytes(messages[2:]) # signature(peer_public_key)
+                signature = bytes(messages[2]) # signature(peer_public_key)
                 signed_message = b''.join([ident, self.delimiter, public_key_bytes])
                 public_key = self.crypt.public_key_from_bytes(public_key_bytes)
                 self.crypt.rsa_verify_signature(signature, signed_message, public_key)

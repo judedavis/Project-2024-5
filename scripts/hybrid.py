@@ -23,7 +23,7 @@ class TCPHybrid (Server):
         self.timeout = 500
         self.peer_table = PeerTable() # Init the DB
         self.crypt = Crpyt(self.peer_table) # init the local keys
-        self.delimiter = bytes.fromhex('1c')
+        self.delimiter = bytes.fromhex('1c1c')
 
     # OVERRIDDEN
     def _handle_connection(self, sock : s.socket, addr : list) -> None:
@@ -31,7 +31,6 @@ class TCPHybrid (Server):
         addr = addr[0]
         port = addr[1]
         msg_len, msg_type, session_id, data = self._receive_message(sock) # receieve both encrypted and unencrypted messages
-
         if data:
             t_print("received message of type: "+str(msg_type))
         else:
@@ -46,7 +45,7 @@ class TCPHybrid (Server):
             messages = data.split(self.delimiter)
             peer_ident = bytes(messages[0]) # the peer's identifier
             encrypted_sym_key = bytes(messages[1]) # symmetric key encrypted with our public key
-            signature = bytes(messages[2]) # signature generated with the peer's private key
+            signature = bytes(messages[2:]) # signature generated with the peer's private key
             signed_message = b''.join([peer_ident, self.delimiter, encrypted_sym_key]) # ident|public_key(sym_key)
             peer_pubkey = self.peer_table.get_user_p_key(peer_ident)
             peer_pubkey = self.crypt.public_str_to_key(peer_pubkey) # retrieve the peer's public key for verification of the signature
@@ -88,7 +87,7 @@ class TCPHybrid (Server):
                 messages = data.split(self.delimiter)
                 ident = bytes(messages[0]) # identifier
                 public_key_bytes = bytes(messages[1]) # peer_public_key
-                signature = bytes(messages[2]) # signature(ident|peer_public_key)
+                signature = bytes(messages[2:]) # signature(ident|peer_public_key)
                 signed_message = b''.join([ident, self.delimiter, public_key_bytes]) # ident|peer_public_key
                 public_key = self.crypt.public_key_from_bytes(public_key_bytes)
                 self.crypt.rsa_verify_signature(signature, signed_message, public_key)
@@ -101,7 +100,7 @@ class TCPHybrid (Server):
                 messages = data.split(self.delimiter)
                 ident = bytes(messages[0])
                 public_key_bytes = bytes(messages[1]) # peer_public_key
-                signature = bytes(messages[2]) # signature(peer_public_key)
+                signature = bytes(messages[2:]) # signature(peer_public_key)
                 signed_message = b''.join([ident, self.delimiter, public_key_bytes])
                 public_key = self.crypt.public_key_from_bytes(public_key_bytes)
                 self.crypt.rsa_verify_signature(signature, signed_message, public_key)
@@ -287,16 +286,16 @@ class TCPHybrid (Server):
         msg = create_message(payload, msg_type, session_id)
         t_print(msg)
         # unencrypted messages are preceeded by an empty byte
-        msg = b''.join([bytes(1), self.delimiter, msg]) # 00|msg
+        msg = b''.join([bytes(2), self.delimiter, msg]) # 00|msg
         return client_obj.send_message(msg)
     
     def _receive_message(self, sock : s.socket):
         """
         Recieve messages both encrypted and unencrypted
         """
-        encrypt_flag = recv_n(sock, 2)
+        encrypt_flag = recv_n(sock, 4)
         print(encrypt_flag)
-        if encrypt_flag == bytes.fromhex('1c1c'): # if message is encrypted
+        if encrypt_flag == bytes.fromhex('1c1c1c1c'): # if message is encrypted (starts with 2 delims)
             # expected message = ident.message_len.(init_vector|sym_key(msg))
             # receieve ident
             peer_ident = recv_n(sock, 16)
@@ -318,7 +317,7 @@ class TCPHybrid (Server):
             msg_len, msg_type, session_id, data = split_msg(msg)
             return (msg_len, msg_type, session_id, data)
             
-        if encrypt_flag == bytes.fromhex('001c'): # if message is not encrypted
+        if encrypt_flag == bytes.fromhex('00001c1c'): # if message is not encrypted (2 null bytes followed by delim)
             msg_len, msg_type, session_id, data = recv_msg(sock) # receieve the unencrypted message
             msg = bytearray()
             msg.extend(msg_len.to_bytes(4, 'little'))

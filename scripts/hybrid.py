@@ -83,7 +83,7 @@ class TCPHybrid (Server):
             self.set_and_check_event(msg_type, addr, session_id, data)
 
         if msg_type == MessageTypes.EXCHANGE_REQ:
-            if data: # peer_public_key|signature(temp_public_key)
+            if data: # expected message = ident|public_key|signature(ident|public_key)
                 self._create_client(addr, port, sock) # init a new client with the active socket
                 messages = data.split(self.delimiter)
                 ident = bytes(messages[0]) # identifier

@@ -320,6 +320,12 @@ class TCPHybrid (Server):
             
         if encrypt_flag == bytes.fromhex('001c'): # if message is not encrypted
             msg_len, msg_type, session_id, data = recv_msg(sock) # receieve the unencrypted message
+            msg = bytearray()
+            msg.extend(msg_len.to_bytes(4, 'little'))
+            msg.extend(msg_type.to_bytes(1, 'little'))
+            msg.extend(session_id.to_bytes(8, 'little'))
+            msg.extend(data)
+            t_print(msg)
             return (msg_len, msg_type, session_id, data)
     
         raise Exception # message header wasn't formatted correctly or connection closed TODO

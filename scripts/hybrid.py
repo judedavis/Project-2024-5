@@ -27,7 +27,6 @@ class TCPHybrid (Server):
 
     # OVERRIDDEN
     def _handle_connection(self, sock : s.socket, addr : list) -> None:
-        print(addr)
         addr = addr[0]
         port = addr[1]
         msg_len, msg_type, session_id, data = self._receive_message(sock) # receieve both encrypted and unencrypted messages
@@ -298,7 +297,6 @@ class TCPHybrid (Server):
         Recieve messages both encrypted and unencrypted
         """
         encrypt_flag = recv_n(sock, 4)
-        print(encrypt_flag)
         if encrypt_flag == bytes.fromhex('1c1c1c1c'): # if message is encrypted (starts with 2 delims)
             # expected message = ident.message_len.(init_vector|sym_key(msg))
             # receieve ident
@@ -490,7 +488,6 @@ class TCPHybrid (Server):
                             MessageTypes.EXCHANGE_ACK, # wait for ack
                             session_id,
                             message)
-        print(peer_public_key)
         if not peer_public_key: # if we didn't recieve any data, or if the event failed, exit
             return None
         self._send_and_wait(addr,

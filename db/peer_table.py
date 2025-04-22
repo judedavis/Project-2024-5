@@ -160,7 +160,7 @@ class PeerTable ():
             cursor.execute(command)
             conn.commit()
             conn.close()
-            t_print("Added new user to db")
+            t_print("Added new host to db")
         except sqlite3.IntegrityError:
             t_print("host already exists.")
             return False

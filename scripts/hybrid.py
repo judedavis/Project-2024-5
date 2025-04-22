@@ -293,7 +293,7 @@ class TCPHybrid (Server):
         """
         Recieve messages both encrypted and unencrypted
         """
-        encrypt_flag = recv_n(sock, 4)
+        encrypt_flag = recv_n(sock, 2)
         print(encrypt_flag)
         if encrypt_flag == bytes.fromhex('1c1c'): # if message is encrypted
             # expected message = ident.message_len.(init_vector|sym_key(msg))

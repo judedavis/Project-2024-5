@@ -81,7 +81,6 @@ def create_message(data: bytearray, msg_type: int, session_id: bytes) -> bytearr
     header = create_header(data, msg_type, session_id)
     message.extend(header)
     message.extend(data)
-    t_print(message)
     return message
 
 def recv_n (sock : s.socket, n : int) -> bytearray:

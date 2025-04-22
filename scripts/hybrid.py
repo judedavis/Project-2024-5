@@ -323,7 +323,7 @@ class TCPHybrid (Server):
             msg = bytearray()
             msg.extend(msg_len.to_bytes(4, 'little'))
             msg.extend(msg_type.to_bytes(1, 'little'))
-            msg.extend(session_id.to_bytes(8, 'little'))
+            msg.extend(session_id)
             msg.extend(data)
             t_print(msg)
             return (msg_len, msg_type, session_id, data)

@@ -99,10 +99,12 @@ class TCPHybrid (Server):
             
         if msg_type == MessageTypes.EXCHANGE_ACK:
             if data: # ident|peer_public_key|signature(ident|temp_public_key)
-                messages = data.split(self.delimiter)
-                ident = bytes(messages[0])
-                public_key_bytes = bytes(messages[1]) # peer_public_key
-                signature = bytes(messages[2]) # signature(peer_public_key)
+                ident, tmp, data = data.partition(self.delimiter) # identifier
+                ident = bytes(ident)
+                public_key_bytes, tmp, data = data.partition(self.delimiter) # peer_public_key
+                public_key_bytes = bytes(public_key_bytes) 
+                signature, tmp, data = data.partition(self.delimiter)
+                signature = bytes(signature) # signature(ident|peer_public_key)
                 signed_message = b''.join([ident, self.delimiter, public_key_bytes])
                 public_key = self.crypt.public_key_from_bytes(public_key_bytes)
                 self.crypt.rsa_verify_signature(signature, signed_message, public_key)
@@ -321,12 +323,6 @@ class TCPHybrid (Server):
             
         if encrypt_flag == bytes.fromhex('00001c1c'): # if message is not encrypted (2 null bytes followed by delim)
             msg_len, msg_type, session_id, data = recv_msg(sock) # receieve the unencrypted message
-            msg = bytearray()
-            msg.extend(msg_len.to_bytes(4, 'little'))
-            msg.extend(msg_type.to_bytes(1, 'little'))
-            msg.extend(session_id)
-            msg.extend(data)
-            t_print(msg)
             return (msg_len, msg_type, session_id, data)
     
         raise Exception # message header wasn't formatted correctly or connection closed TODO

@@ -40,6 +40,7 @@ class TCPHybrid (Server):
         
         if msg_type == MessageTypes.HANDSHAKE_REQ:
             self._create_client(addr, port, sock) # init a new client with the active socket
+            t_print(data)
             # expected message = ident|public_key(sym_key)|signature(ident|public_key(sym_key))
             messages = data.split(self.delimiter)
             peer_ident = bytes(messages[0]) # the peer's identifier

@@ -30,7 +30,7 @@ class TCPHybrid (Server):
         print(addr)
         addr = addr[0]
         port = addr[1]
-        msg_len, msg_type, session_id, data = recv_msg(sock)
+        msg_len, msg_type, session_id, data = self._receive_message(sock) # receieve both encrypted and unencrypted messages
 
         if data:
             t_print("received message of type: "+str(msg_type))
@@ -42,13 +42,18 @@ class TCPHybrid (Server):
         
         if msg_type == MessageTypes.HANDSHAKE_REQ:
             self._create_client(addr, port, sock) # init a new client with the active socket
-            # public_key(sym_key)|signature(public_key(sym_key))
+            # expected message = ident|public_key(sym_key)|signature(ident|public_key(sym_key))
             messages = data.split(self.delimiter)
-            encrypted_sym_key = bytes(messages[0])
-            signature = bytes(messages[1])
-            self.crypt.rsa_verify_signature(signature, encrypted_sym_key, )
+            peer_ident = bytes(messages[0]) # the peer's identifier
+            encrypted_sym_key = bytes(messages[1]) # symmetric key encrypted with our public key
+            signature = bytes(messages[2]) # signature generated with the peer's private key
+            signed_message = b''.join(peer_ident, self.delimiter, encrypted_sym_key) # ident|public_key(sym_key)
+            peer_pubkey = self.peer_table.get_user_p_key(peer_ident)
+            peer_pubkey = self.crypt.public_str_to_key(peer_pubkey) # retrieve the peer's public key for verification of the signature
+            self.crypt.rsa_verify_signature(signature, signed_message, peer_pubkey)
+            sym_key = self.crypt.rsa_decrypt(encrypted_sym_key)
             # can't do anything with this here so pass it to callback
-            self.receieve_handshake(addr, session_id, encrypted_sym_key, signature)
+            self.receieve_handshake(addr, session_id, sym_key, peer_ident)
 
         if msg_type == MessageTypes.HANDSHAKE_ACK:
             self.set_and_check_event(msg_type, addr, session_id, data)
@@ -97,10 +102,10 @@ class TCPHybrid (Server):
                 ident = bytes(messages[0])
                 public_key_bytes = bytes(messages[1]) # peer_public_key
                 signature = bytes(messages[2]) # signature(peer_public_key)
-                signed_message = b''.join(ident, self.delimiter, public_key_bytes)
+                signed_message = b''.join([ident, self.delimiter, public_key_bytes])
                 public_key = self.crypt.public_key_from_bytes(public_key_bytes)
                 self.crypt.rsa_verify_signature(signature, signed_message, public_key)
-                self.set_and_check_event(msg_type, addr, session_id, (ident, public_key), True)
+                self.set_and_check_event(msg_type, addr, session_id, (ident.hex(), public_key), True)
             else: # no attached data
                 self.set_and_check_event(msg_type, addr, session_id, None, False)
             
@@ -280,11 +285,74 @@ class TCPHybrid (Server):
         if not payload: # if no payload is given, create empty bytearray obj
             payload = bytearray()
         msg = create_message(payload, msg_type, session_id)
+        # unencrypted messages are preceeded by an empty byte
+        msg = b''.join(bytes(1), self.delimiter, msg) # 00|msg
         return client_obj.send_message(msg)
-        
+    
+    def _receive_message(self, sock : s.socket):
+        """
+        Recieve messages both encrypted and unencrypted
+        """
+        encrypt_flag = recv_n(sock, 4)
+        if encrypt_flag == bytes.fromhex('1c1c'): # if message is encrypted
+            # expected message = ident.message_len.(init_vector|sym_key(msg))
+            # receieve ident
+            peer_ident = recv_n(sock, 16)
+            peer_ident = peer_ident.hex()
+            # receieve message_len
+            encrypted_msg_len = recv_n(sock, 4) # message_len
+            encrypted_msg_len = int.from_bytes(encrypted_msg_len, 'little')
+            # receieve init_vector and encrypted message
+            encrypted_msg = recv_n(sock, encrypted_msg_len) # (init_vector|sym_key(msg))
+            messages = encrypted_msg.split(self.delimiter)
+            init_vector = messages[0] # init_vector
+            encrypted_msg = messages[1] # sym_key(msg)
+            # get the our shared key with this peer
+            sym_key = self.peer_table.get_user_s_key(peer_ident)
+            sym_key = bytes.fromhex(sym_key)
+            # decrypt the message
+            msg = self.crypt.sym_decrypt(encrypted_msg, sym_key, init_vector)
+            # unpack the message
+            msg_len, msg_type, session_id, data = split_msg(msg)
+            return (msg_len, msg_type, session_id, data)
+            
+        if encrypt_flag == bytes.fromhex('001c'): # if message is not encrypted
+            msg_len, msg_type, session_id, data = recv_msg(sock) # receieve the unencrypted message
+            return (msg_len, msg_type, session_id, data)
+    
+        return None # message header wasn't formatted correctly
+
+
+    def _send_encrypted_message(self, addr : str, port: int, msg_type : int, session_id : bytes, sym_key : bytes, payload : bytearray = None) -> bool:
+        try:
+            client_obj = self.clients[addr]
+        except KeyError:
+            t_print('Error - No client object exists for the intended address '+addr)
+            return False
+        if isinstance(payload, str):
+            payload = payload.encode('utf-8')
+        if not payload:
+            payload = bytearray()
+        msg = create_message(payload, msg_type, session_id)
+        encrypted_msg, init_vector = self.crypt.sym_encrypt(msg, sym_key) # 4 byte unsigned length allows for a very large encrypted message size (much larger than we'll ever need)
+        encrypted_msg = b''.join(init_vector, encrypted_msg)
+        encrypted_msg_len = len(encrypted_msg).to_bytes(4, 'little')
+        ident = self.peer_table.get_host_identifier() # get ident
+        ident = bytes.fromhex(ident) # convert to bytes
+        # two delimiters preceeds any data to tell the receiever this message is encrypted
+        encrypted_msg = b''.join(self.delimiter, self.delimiter, ident, encrypted_msg_len, encrypted_msg) # ||ident.message_len.(init_vector|sym_key(msg))
+        return client_obj.send_message(encrypted_msg)
+
     def _generate_session_id(self) -> bytes:
         return r.randbytes(8)
             
+    def _send_encrypted_and_wait(self, addr : str, port : int, send_type : int, wait_type : int, session_id : bytes, sym_key : bytes, message : bytes = None) -> any:
+        self._create_event(wait_type, addr, session_id)
+        self._send_encrypted_message(addr, port, send_type, session_id, sym_key, message)
+        self._client_response(addr)
+        data = self.wait_event(wait_type, addr, session_id)
+        return data
+
     def _send_and_wait(self, addr : str, port : int, send_type : int, wait_type : int, session_id : bytes, message : bytes = None) -> any:
         self._create_event(wait_type, addr, session_id)
         self._send_message(addr, port, send_type, session_id, message)
@@ -298,11 +366,17 @@ class TCPHybrid (Server):
         # here we get our public key ready
         if (not session_id): # if session id not provided for this interaction, generate a new one
             session_id = self._generate_session_id()
-        message = bytearray() # public_key(sym_key)|signature(public_key(sym_key))
+        message = bytearray() # ident|public_key(sym_key)|signature(ident|public_key(sym_key))
+        # get the host ident
+        ident = self.peer_table.get_host_identifier()
+        message.extend(bytes.fromhex(ident))
         # generate symmetric key
         sym_key = self.crypt.generate_sym_key()
-        # encrypt the key
-        message.extend(self.crypt.rsa_encrypt(sym_key, self.crypt.public_key))
+        # encrypt the key with the peer's public key
+        peer_ident = self.peer_table.get_identifier_by_last_addr(addr)
+        peer_pubkey = self.peer_table.get_user_p_key(peer_ident)
+        peer_pubkey = self.crypt.public_str_to_key(peer_pubkey)
+        message.extend(self.crypt.rsa_encrypt(sym_key, peer_pubkey))
         # sign the message thus far
         message.extend(self.crypt.rsa_generate_signature(message, self.crypt.private_key))
 
@@ -327,15 +401,24 @@ class TCPHybrid (Server):
         t_print("Handshake finished!")
         return True
 
-    def receieve_handshake(self, addr : str, session_id : bytes, sym_key : bytes, signature : bytes) -> bool:
-        
-        # send HANDSHAKE_ACK and wait for HANDSHAKE_ACK_2
-        self._send_and_wait(addr,
-                            self.port,
-                            MessageTypes.HANDSHAKE_ACK,
-                            MessageTypes.HANDSHAKE_ACK_2,
-                            session_id)
+    def receieve_handshake(self, addr : str, session_id : bytes, sym_key : str, peer_ident : bytes) -> bool:
+        # message = ident|peer_pubkey(ident)
+        message = bytearray()
+        peer_ident = self.peer_table.get_identifier_by_last_addr(addr)
+        message.extend(bytes.fromhex(peer_ident))
+        peer_pubkey = self.peer_table.get_user_p_key(peer_ident)
+        peer_pubkey = self.crypt.public_str_to_key(peer_pubkey)
+        message.extend(self.crypt.rsa_encrypt(message, peer_pubkey))
 
+        # send HANDSHAKE_ACK and wait for HANDSHAKE_ACK_2
+        self._send_encrypted_and_wait(addr, 
+                                      self.port,
+                                      MessageTypes.HANDSHAKE_ACK,
+                                      MessageTypes.HANDSHAKE_ACK_2,
+                                      session_id,
+                                      sym_key,
+                                      message)
+        
         # send HANDSHAKE_FINAL_1 and wait for HANDSHAKE_FINAL_2
         self._send_and_wait(addr,
                             self.port,

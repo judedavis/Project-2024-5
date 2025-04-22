@@ -47,7 +47,16 @@ class PeerTable ():
         return False
         
     ## Getters and Setters
-    def get_user_p_key(self, identifier : str) -> bool:
+    def get_identifier_by_last_addr(self, last_addr : str):
+        command = """SELECT identifier FROM PeerTable WHERE lastSeenAddress = {0}""".format(self._str_format(last_addr))
+        conn = sqlite3.connect(self.file_path)
+        cursor = conn.cursor() # create cursor
+        cursor.execute(command)
+        row = cursor.fetchone()[0]
+        conn.close()
+        return row
+
+    def get_user_p_key(self, identifier : str) -> str:
         command = """SELECT pubKey FROM PeerTable WHERE identifier = {0}""".format(self._str_format(identifier))
         conn = sqlite3.connect(self.file_path)
         cursor = conn.cursor() # create cursor
@@ -56,7 +65,7 @@ class PeerTable ():
         conn.close()
         return row
 
-    def update_user_s_key(self, identifier : str, new_s_key : str) -> bool:
+    def update_user_s_key(self, identifier : str, new_s_key : str) -> str:
         command = """UPDATE PeerTable SET symKey = {0} WHERE identifier = {1}""".format(self._str_format(new_s_key), self._str_format(identifier))
         conn = sqlite3.connect(self.file_path)
         cursor = conn.cursor() # create cursor

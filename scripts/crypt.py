@@ -37,12 +37,18 @@ class Crpyt():
         public_key = private_key.public_key() # derive the public key
         return (private_key, public_key)
     
+    def public_str_to_key(self, pub_str : str) -> rsa.RSAPublicKey:
+        public_key = pub_str.encode('utf-8')
+        public_key = serialization.load_pem_public_key(data=public_key, backend=None)
+        return public_key
+    
     def _generate_identifier(self) -> str:
         for i in range(0,5): # would use a while loop but it makes me nervous, 5 tries should be enough?
             identifier = r.randbytes(16)
             identifier = identifier.hex()
             if not self.db.check_if_identifier_exists(identifier): # check that the identifier isnt already in use
                 return identifier
+        raise Exception # todo
     
     def public_key_to_bytes(self, public_key : rsa.RSAPublicKey) -> bytes:
         bytes = public_key.public_bytes(encoding=serialization.Encoding.PEM,
@@ -96,33 +102,32 @@ class Crpyt():
         return signature
         
     def rsa_verify_signature(self, signature : bytes, data : bytes, public_key : rsa.RSAPublicKey) -> bool:
-        try:
-            public_key.verify(signature=signature,
-                                data=data,
-                                padding=padding.PSS(
-                                    mgf=padding.MGF1(self.hash_algo()),
-                                    salt_length=padding.PSS.MAX_LENGTH),
-                                algorithm=self.hash_algo())
-            return True
-        except InvalidSignature:
-            return False
+        # try:
+        public_key.verify(signature=signature,
+                            data=data,
+                            padding=padding.PSS(
+                                mgf=padding.MGF1(self.hash_algo()),
+                                salt_length=padding.PSS.MAX_LENGTH),
+                            algorithm=self.hash_algo())
+        return True
+        # except InvalidSignature:
+        #     return False
         
         
     def generate_sym_key(self) -> bytes:
         return urandom(int(self.sym_key_size/8))
     
-    def sym_encrypt(self, plaintext : bytes, sym_key : bytes) -> bytes:
+    def sym_encrypt(self, plaintext : bytes, sym_key : bytes) -> tuple:
         init_vector = urandom(16)
         if isinstance(plaintext, str):
             plaintext = plaintext.encode('utf-8')
         cipher = Cipher(algorithm=algorithms.AES(sym_key), mode=modes.GCM(init_vector))
         encryptor = cipher.encryptor()
         ciphertext = encryptor.update(plaintext) + encryptor.finalize()
-        return ciphertext
+        return (ciphertext, init_vector)
     
-    def sym_decrypt(self, ciphertext : bytes, sym_key : bytes, init_vector : bytes) -> str:
+    def sym_decrypt(self, ciphertext : bytes, sym_key : bytes, init_vector : bytes) -> bytes:
         cipher = Cipher(algorithm=algorithms.AES(sym_key), mode=modes.GCM(init_vector))
         decryptor = cipher.decryptor()
         plaintext = decryptor.update(ciphertext) + decryptor.finalize()
-        plaintext = plaintext.decode('utf-8')
         return plaintext

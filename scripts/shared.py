@@ -96,6 +96,16 @@ def recv_n (sock : s.socket, n : int) -> bytearray:
         data.extend(packet)
     return data
 
+def split_msg (data : bytes) -> tuple:
+    """
+    Retrieves the header and payload from a message that has already been received
+    """
+    msg_len = data[0:4]
+    msg_type = data[4:5]
+    session_id = data[5:13]
+    payload = data[13:]
+    return(msg_len, msg_type, session_id, payload)
+
 def recv_msg (sock : s.socket) -> tuple:
     """
     Recieves variable length message on given socket

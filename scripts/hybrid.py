@@ -90,7 +90,6 @@ class TCPHybrid (Server):
                 public_key_bytes = bytes(messages[1]) # peer_public_key
                 signature = bytes(messages[2]) # signature(ident|peer_public_key)
                 signed_message = b''.join([ident, self.delimiter, public_key_bytes]) # ident|peer_public_key
-                t_print("receiving key: "+public_key_bytes.hex())
                 public_key = self.crypt.public_key_from_bytes(public_key_bytes)
                 self.crypt.rsa_verify_signature(signature, signed_message, public_key)
                 self.receive_key_exchange(addr, session_id, public_key, ident.hex())
@@ -104,7 +103,6 @@ class TCPHybrid (Server):
                 public_key_bytes = bytes(messages[1]) # peer_public_key
                 signature = bytes(messages[2]) # signature(peer_public_key)
                 signed_message = b''.join([ident, self.delimiter, public_key_bytes])
-                t_print("receiving key: "+public_key_bytes.hex())
                 public_key = self.crypt.public_key_from_bytes(public_key_bytes)
                 self.crypt.rsa_verify_signature(signature, signed_message, public_key)
                 self.set_and_check_event(msg_type, addr, session_id, (ident.hex(), public_key), True)
@@ -287,6 +285,7 @@ class TCPHybrid (Server):
         if not payload: # if no payload is given, create empty bytearray obj
             payload = bytearray()
         msg = create_message(payload, msg_type, session_id)
+        t_print(msg)
         # unencrypted messages are preceeded by an empty byte
         msg = b''.join([bytes(1), self.delimiter, msg]) # 00|msg
         return client_obj.send_message(msg)
@@ -478,7 +477,6 @@ class TCPHybrid (Server):
         message.extend(self.crypt.public_key_to_bytes(self.crypt.public_key)) # public_key
         signature = self.crypt.rsa_generate_signature(message, self.crypt.private_key) # sign the message thus far
 
-        t_print("sending key: "+self.crypt.public_key_to_bytes(self.crypt.public_key).hex())
         self.crypt.rsa_verify_signature(signature, message, self.crypt.public_key)
 
         message.extend(self.delimiter) # |
@@ -517,7 +515,6 @@ class TCPHybrid (Server):
         message.extend(bytes.fromhex(ident)) # ident
         message.extend(self.delimiter) # |
         message.extend(self.crypt.public_key_to_bytes(self.crypt.public_key)) # public_key
-        t_print("sending key: "+self.crypt.public_key_to_bytes(self.crypt.public_key).hex())
         signature = self.crypt.rsa_generate_signature(message, self.crypt.private_key) # sign the message thus far
         
         self.crypt.rsa_verify_signature(signature, message, self.crypt.public_key)

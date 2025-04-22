@@ -320,7 +320,7 @@ class TCPHybrid (Server):
             msg_len, msg_type, session_id, data = recv_msg(sock) # receieve the unencrypted message
             return (msg_len, msg_type, session_id, data)
     
-        return None # message header wasn't formatted correctly
+        raise Exception # message header wasn't formatted correctly TODO
 
 
     def _send_encrypted_message(self, addr : str, port: int, msg_type : int, session_id : bytes, sym_key : bytes, payload : bytearray = None) -> bool:

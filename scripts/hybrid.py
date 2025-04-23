@@ -54,7 +54,7 @@ class TCPHybrid (Server):
             self.crypt.rsa_verify_signature(signature, signed_message, peer_pubkey)
             sym_key = self.crypt.rsa_decrypt(encrypted_sym_key)
             # can't do anything with this here so pass it to callback
-            self.receieve_handshake(addr, session_id, sym_key, peer_ident)
+            self.receieve_handshake(addr, session_id, sym_key.hex(), peer_ident.hex())
 
         if msg_type == MessageTypes.HANDSHAKE_ACK:
             # rand|signatute(rand)
@@ -439,7 +439,6 @@ class TCPHybrid (Server):
 
     def receieve_handshake(self, addr : str, session_id : bytes, sym_key : str, peer_ident : bytes) -> bool:
         # commit sym_key to peer_table
-        peer_ident = str(peer_ident.hex())
         self.peer_table.update_user_s_key(peer_ident, sym_key)
         # message = rand|signatute(rand)
         message = bytearray()

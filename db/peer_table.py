@@ -183,9 +183,11 @@ class PeerTable ():
     def get_serialised_peers(self):
         rows = self.get_peers()
         serialised_rows = pickle.dumps(rows, 5) # serialise the returned rows
+        t_print(serialised_rows)
         return serialised_rows
     
     def update_serialised_peers(self, serialised_rows : bytes) -> bool:
+        t_print(serialised_rows)
         rows = pickle.loads(serialised_rows)
         return self.update_peers(rows)
     

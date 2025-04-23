@@ -127,8 +127,7 @@ class TCPHybrid (Server):
             pass
         
         if msg_type == MessageTypes.UPDATE_PEERS_REQ:
-            payload = data
-            self.receive_update_peers(addr, session_id, payload)
+            self.receive_update_peers(addr, session_id, data)
 
         if msg_type == MessageTypes.UPDATE_PEERS_ACK:
             self.set_and_check_event(msg_type, addr, session_id, data)

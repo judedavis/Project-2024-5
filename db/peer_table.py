@@ -170,7 +170,7 @@ class PeerTable ():
             lastSeenTime = peer[3]
             command = """INSERT INTO PeerTable(identifier, pubKey, lastSeenAddress, lastSeenTime)
                             VALUES ({0}, {1}, {2}, {3})
-                            ON CONFLICT(identifier, pubKey)
+                            ON CONFLICT(identifier)
                             DO
 	                            UPDATE SET lastSeenAddress = {2}, lastSeenTime = {3}""".format(self._str_format(identifier),
                                                                                                 self._str_format(pubKey),
@@ -183,13 +183,9 @@ class PeerTable ():
     def get_serialised_peers(self):
         rows = self.get_peers()
         serialised_rows = pickle.dumps(rows, 5) # serialise the returned rows
-        t_print('\n\n')
-        t_print(serialised_rows)
         return serialised_rows
     
     def update_serialised_peers(self, serialised_rows : bytes) -> bool:
-        t_print('\n\n')
-        t_print(serialised_rows)
         rows = pickle.loads(serialised_rows)
         return self.update_peers(rows)
     

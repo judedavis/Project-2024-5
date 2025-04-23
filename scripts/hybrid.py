@@ -31,6 +31,7 @@ class TCPHybrid (Server):
         addr = addr[0]
         port = addr[1]
         msg_len, msg_type, session_id, data = self._receive_message(sock) # receieve both encrypted and unencrypted messages
+        offset = 0
         if data:
             t_print("received message of type: "+str(msg_type))
         else:
@@ -44,7 +45,6 @@ class TCPHybrid (Server):
             expected message = ident|encrypted_sym_len|public_key(sym_key)|signature_len|signature(ident|encrypted_sym_len|public_key(sym_key))
             """
             self._create_client(addr, port, sock) # init a new client with the active socket
-            offset = 0
             # get identifier
             peer_ident = data[offset:offset+16] # first 16 bytes is peer identifier
             peer_ident = bytes(peer_ident).hex()
@@ -77,26 +77,40 @@ class TCPHybrid (Server):
             self.receieve_handshake(addr, session_id, sym_key, peer_ident)
 
         if msg_type == MessageTypes.HANDSHAKE_ACK:
-            # rand|signatute(rand)
-            rand = data[0:8] # the random 8 bytes
+            """
+            expected message = rand|signatute(rand)
+            """
+            # get random bits
+            rand = data[offset:offset+8] # the random 8 bytes
             rand = bytes(rand)
-            signature = data[8:] # the rest is the signature
+            offset += 8
+            # get signature
+            signature = data[offset:] # the rest is the signature
             signature = bytes(signature)
+            # get peer public key
             peer_ident = self.peer_table.get_identifier_by_last_addr(addr)
             peer_pubkey = self.peer_table.get_user_p_key(peer_ident)
             peer_pubkey = self.crypt.public_str_to_key(peer_pubkey)
+
             self.crypt.rsa_verify_signature(signature, rand, peer_pubkey)
             self.set_and_check_event(msg_type, addr, session_id, data)
 
         if msg_type == MessageTypes.HANDSHAKE_ACK_2:
-            # rand|signatute(rand)
-            rand = data[0:8] # the random 8 bytes
+            """
+            expected message = rand|signatute(rand)
+            """
+            # get random bits
+            rand = data[offset:offset+8] # the random 8 bytes
             rand = bytes(rand)
-            signature = data[8:] # the rest is the signature
+            offset += 8
+            # get signature
+            signature = data[offset:] # the rest is the signature
             signature = bytes(signature)
+            # get peer public key
             peer_ident = self.peer_table.get_identifier_by_last_addr(addr)
             peer_pubkey = self.peer_table.get_user_p_key(peer_ident)
             peer_pubkey = self.crypt.public_str_to_key(peer_pubkey)
+
             self.crypt.rsa_verify_signature(signature, rand, peer_pubkey)
             self.set_and_check_event(msg_type, addr, session_id, data)
 
@@ -128,18 +142,39 @@ class TCPHybrid (Server):
             self.set_and_check_event(msg_type, addr, session_id, data)
 
         if msg_type == MessageTypes.EXCHANGE_REQ:
-            if data: # expected message = ident|public_key|signature(ident|public_key)
+            """
+            expected message = ident|public_key_len|public_key|signature_len|signature(ident|public_key_len|public_key)
+            """
+            if data:
                 self._create_client(addr, port, sock) # init a new client with the active socket
-                ident, tmp, data = data.partition(self.delimiter) # identifier
-                ident = bytes(ident)
-                public_key_bytes, tmp, data = data.partition(self.delimiter) # peer_public_key
-                public_key_bytes = bytes(public_key_bytes) 
-                signature, tmp, data = data.partition(self.delimiter)
-                signature = bytes(signature) # signature(ident|peer_public_key)
-                signed_message = b''.join([ident, self.delimiter, public_key_bytes]) # ident|peer_public_key
-                public_key = self.crypt.public_key_from_bytes(public_key_bytes)
+
+                # get ident
+                ident = data[offset:offset+16]
+                ident = bytes(ident).hex()
+                offset += 16
+                # get public key length
+                public_key_len = data[offset:offset+4]
+                public_key_len = int.from_bytes(public_key_len, 'little')
+                offset += 4
+                # get public key
+                public_key = data[offset:offset+public_key_len]
+                public_key = bytes(public_key)
+                offset += public_key_len
+                # get signed message
+                signed_message = data[0:offset]
+                signed_message = bytes(signed_message)
+                # get signature length
+                signature_len = data[offset:offset+4]
+                signature_len = int.from_bytes(signature_len, 'little')
+                offset += 4
+                # get signature
+                signature = data[offset:offset+signature_len]
+                signature = bytes(signature)
+                offset += signature_len
+
+                public_key = self.crypt.public_key_from_bytes(public_key) # deserialise public key
                 self.crypt.rsa_verify_signature(signature, signed_message, public_key)
-                self.receive_key_exchange(addr, session_id, public_key, ident.hex())
+                self.receive_key_exchange(addr, session_id, public_key, ident)
             else: # no attached data
                 return # silent treatment
             
@@ -533,17 +568,24 @@ class TCPHybrid (Server):
         """
         if (not session_id):
             session_id = self._generate_session_id()
-        message = bytearray() # create (ident|public_key|signature(ident|public_key))
+        # message = ident|public_key_len|public_key|signature_len|signature(ident|public_key_len|public_key)
+        message = bytearray() 
+        # add ident
         ident = self.peer_table.get_host_identifier()
         message.extend(bytes.fromhex(ident)) # ident
-        message.extend(self.delimiter) # |
-        message.extend(self.crypt.public_key_to_bytes(self.crypt.public_key)) # public_key
+        # add public_key_len
+        public_key = self.crypt.public_key_to_bytes(self.crypt.public_key)
+        public_key_len = len(public_key).to_bytes(4, 'little')
+        message.extend(public_key_len)
+        # add public key
+        message.extend(public_key)
+        # add signature length
         signature = self.crypt.rsa_generate_signature(message, self.crypt.private_key) # sign the message thus far
+        signature_len = len(signature).to_bytes(4, 'little')
+        message.extend(signature_len)
+        # add signature
+        message.extend(signature)
 
-        self.crypt.rsa_verify_signature(signature, message, self.crypt.public_key)
-
-        message.extend(self.delimiter) # |
-        message.extend(signature) # signature(ident|public_key)
         peer_ident, peer_public_key = self._send_and_wait(addr,
                             self.port,
                             MessageTypes.EXCHANGE_REQ, # ident|public_key|signature(ident|public_key)

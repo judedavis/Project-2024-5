@@ -57,16 +57,38 @@ class TCPHybrid (Server):
             self.receieve_handshake(addr, session_id, sym_key, peer_ident)
 
         if msg_type == MessageTypes.HANDSHAKE_ACK:
+            # rand|signatute(rand)
+            rand = data[0:8] # the random 8 bytes
+            rand = bytes(rand)
+            signature = data[8:] # the rest is the signature
+            signature = bytes(signature)
+            peer_ident = self.peer_table.get_identifier_by_last_addr(addr)
+            peer_pubkey = self.peer_table.get_user_p_key(peer_ident)
+            self.crypt.rsa_verify_signature(signature, rand, peer_pubkey)
             self.set_and_check_event(msg_type, addr, session_id, data)
 
         if msg_type == MessageTypes.HANDSHAKE_ACK_2:
+            # rand|signatute(rand)
+            rand = data[0:8] # the random 8 bytes
+            rand = bytes(rand)
+            signature = data[8:] # the rest is the signature
+            signature = bytes(signature)
+            peer_ident = self.peer_table.get_identifier_by_last_addr(addr)
+            peer_pubkey = self.peer_table.get_user_p_key(peer_ident)
+            self.crypt.rsa_verify_signature(signature, rand, peer_pubkey)
             self.set_and_check_event(msg_type, addr, session_id, data)
 
         if msg_type == MessageTypes.HANDSHAKE_FINAL_1:
-            self.set_and_check_event(msg_type, addr, session_id, data)
+            """
+            Unused
+            """
+            pass
 
         if msg_type == MessageTypes.HANDSHAKE_FINAL_2:
-            self.set_and_check_event(msg_type, addr, session_id, data)
+            """
+            Unused
+            """
+            pass
         
         if msg_type == MessageTypes.UPDATE_PEERS_REQ:
             self.receive_update_peers(addr, session_id)
@@ -290,9 +312,9 @@ class TCPHybrid (Server):
         if not payload: # if no payload is given, create empty bytearray obj
             payload = bytearray()
         msg = create_message(payload, msg_type, session_id)
-        t_print(msg)
         # unencrypted messages are preceeded by an empty byte
         msg = b''.join([bytes(2), self.delimiter, msg]) # 0000|msg
+        t_print(msg)
         return client_obj.send_message(msg)
     
     def _receive_message(self, sock : s.socket):
@@ -310,7 +332,6 @@ class TCPHybrid (Server):
             encrypted_msg_len = int.from_bytes(encrypted_msg_len, 'little')
             # receieve init_vector auth_tag and encrypted message
             encrypted_msg = recv_n(sock, encrypted_msg_len) # (init_vector|sym_key(msg))
-            t_print(encrypted_msg)
             init_vector, tmp, encrypted_msg = encrypted_msg.partition(self.delimiter) # init_vector, auth_tag|sym_key(msg)
             init_vector = bytes(init_vector)
             auth_tag, tmp, encrypted_msg = encrypted_msg.partition(self.delimiter) # auth_tag, sym_key(msg)
@@ -349,7 +370,8 @@ class TCPHybrid (Server):
         ident = self.peer_table.get_host_identifier() # get ident
         ident = bytes.fromhex(ident) # convert to bytes
         # two delimiters preceeds any data to tell the receiever this message is encrypted
-        encrypted_msg = b''.join([self.delimiter, self.delimiter, ident, encrypted_msg_len, encrypted_msg]) # ||ident.message_len.(init_vector|auth_tag|sym_key(msg))
+        encrypted_msg = b''.join([self.delimiter, self.delimiter, ident, encrypted_msg_len, encrypted_msg]) # ||ident.message_len.init_vector|auth_tag|sym_key(msg)
+        t_print(encrypted_msg)
         return client_obj.send_message(encrypted_msg)
 
     def _generate_session_id(self) -> bytes:
@@ -400,30 +422,30 @@ class TCPHybrid (Server):
                             MessageTypes.HANDSHAKE_ACK, # receieve
                             session_id,
                             message)
-
-        # send HANDSHAKE_ACK_2 and wait for HANDSHAKE_FINAL_1
-        self._send_and_wait(addr,
-                            self.port,
-                            MessageTypes.HANDSHAKE_ACK_2,
-                            MessageTypes.HANDSHAKE_FINAL_1,
-                            session_id,
-                            message)
         
+        # message = rand|signatute(rand)
+        message = bytearray()
+        rand = r.randbytes(8) # 8 bytes of random data to sign
+        message.extend(rand)
+        signature = self.crypt.rsa_generate_signature(message, self.crypt.private_key)
+        message.extend(signature)
+
         # send HANDSHAKE_FINAL_2
-        self._send_message(addr, self.port, MessageTypes.HANDSHAKE_FINAL_2, session_id)
+        self._send_encrypted_message(addr, self.port, MessageTypes.HANDSHAKE_ACK_2, session_id, sym_key, message)
+
+
         t_print("Handshake finished!")
         return True
 
     def receieve_handshake(self, addr : str, session_id : bytes, sym_key : str, peer_ident : bytes) -> bool:
-        # message = ident|peer_pubkey(ident)
+        # message = rand|signatute(rand)
         message = bytearray()
-        peer_ident = self.peer_table.get_identifier_by_last_addr(addr)
-        message.extend(bytes.fromhex(peer_ident))
-        peer_pubkey = self.peer_table.get_user_p_key(peer_ident)
-        peer_pubkey = self.crypt.public_str_to_key(peer_pubkey)
-        message.extend(self.crypt.rsa_encrypt(bytes(message), peer_pubkey))
+        rand = r.randbytes(8) # 8 bytes of random data to sign
+        message.extend(rand)
+        signature = self.crypt.rsa_generate_signature(message, self.crypt.private_key)
+        message.extend(signature)
 
-        # send HANDSHAKE_ACK and wait for HANDSHAKE_ACK_2
+        # send HANDSHAKE_ACK and wait for HANDSHAKE_FINAL_2
         self._send_encrypted_and_wait(addr, 
                                       self.port,
                                       MessageTypes.HANDSHAKE_ACK,
@@ -432,12 +454,7 @@ class TCPHybrid (Server):
                                       sym_key,
                                       message)
         
-        # send HANDSHAKE_FINAL_1 and wait for HANDSHAKE_FINAL_2
-        self._send_and_wait(addr,
-                            self.port,
-                            MessageTypes.HANDSHAKE_FINAL_1,
-                            MessageTypes.HANDSHAKE_FINAL_2, 
-                            session_id)
+
         t_print("Handshake finished!")
         return True
     

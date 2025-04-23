@@ -353,7 +353,7 @@ class TCPHybrid (Server):
             init_vector = recv_n(sock, 16)
             init_vector = bytes(init_vector)
             # receieve auth_tag_len
-            auth_tag_len = recv_msg(sock, 4)
+            auth_tag_len = recv_n(sock, 4)
             auth_tag_len = int.from_bytes(auth_tag_len, 'little')
             # receive auth_tag
             auth_tag = recv_n(sock, auth_tag_len)

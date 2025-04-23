@@ -127,6 +127,7 @@ class TCPHybrid (Server):
             pass
         
         if msg_type == MessageTypes.UPDATE_PEERS_REQ:
+            self._create_client(addr, port, sock) # init a new client with the active socket
             self.receive_update_peers(addr, session_id, data)
 
         if msg_type == MessageTypes.UPDATE_PEERS_ACK:
@@ -442,6 +443,7 @@ class TCPHybrid (Server):
             client_obj = self.clients[addr]
         except KeyError:
             t_print('Error - No client object exists for the intended address '+addr)
+            raise KeyError
             return False
         if isinstance(payload, str):
             payload = payload.encode('utf-8')

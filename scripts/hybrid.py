@@ -565,13 +565,17 @@ class TCPHybrid (Server):
         sym_key = self.peer_table.get_user_s_key(peer_ident)
         sym_key = bytes.fromhex(sym_key)
         # send encrypted data
-        self._send_encrypted_and_wait(addr,
+        payload = self._send_encrypted_and_wait(addr,
                                       self.port,
                                       MessageTypes.UPDATE_PEERS_REQ,
                                       MessageTypes.UPDATE_PEERS_ACK,
                                       session_id,
                                       sym_key,
                                       message)
+        
+        # update the peer table with serialised rows
+        self.peer_table.update_serialised_peers(payload)
+
         self._send_and_wait(addr,
                             self.port,
                             MessageTypes.UPDATE_PEERS_ACK_2,

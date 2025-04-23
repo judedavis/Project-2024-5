@@ -416,7 +416,7 @@ class TCPHybrid (Server):
         message.extend(bytes.fromhex(peer_ident))
         peer_pubkey = self.peer_table.get_user_p_key(peer_ident)
         peer_pubkey = self.crypt.public_str_to_key(peer_pubkey)
-        message.extend(self.crypt.rsa_encrypt(message, peer_pubkey))
+        message.extend(self.crypt.rsa_encrypt(bytes(message), peer_pubkey))
 
         # send HANDSHAKE_ACK and wait for HANDSHAKE_ACK_2
         self._send_encrypted_and_wait(addr, 

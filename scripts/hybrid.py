@@ -36,7 +36,7 @@ class TCPHybrid (Server):
             t_print("received message of type: "+str(msg_type)+" with data: "+str(data))
 
         # CASE FOR EVERY TYPE OF MESSAGE IN PROTOCOL
-        # I would like to use a switch statement, but developing with python 3.9 (look into this)
+        # I would like to use a switch statement, but developing with python 3.9
         
         if msg_type == MessageTypes.HANDSHAKE_REQ:
             self._create_client(addr, port, sock) # init a new client with the active socket
@@ -48,7 +48,7 @@ class TCPHybrid (Server):
             encrypted_sym_key = bytes(encrypted_sym_key) 
             signature, tmp, data = data.partition(self.delimiter)
             signature = bytes(signature) # signature generated with the peer's private key
-            signed_message = b''.join([peer_ident, self.delimiter, encrypted_sym_key]) # ident|public_key(sym_key)
+            signed_message = b''.join([peer_ident, self.delimiter, encrypted_sym_key, self.delimiter]) # ident|public_key(sym_key)|
             peer_pubkey = self.peer_table.get_user_p_key(peer_ident.hex())
             peer_pubkey = self.crypt.public_str_to_key(peer_pubkey) # retrieve the peer's public key for verification of the signature
             self.crypt.rsa_verify_signature(signature, signed_message, peer_pubkey)
@@ -376,6 +376,7 @@ class TCPHybrid (Server):
         # get the host ident
         ident = self.peer_table.get_host_identifier()
         message.extend(bytes.fromhex(ident))
+        message.extend(self.delimiter)
         # generate symmetric key
         sym_key = self.crypt.generate_sym_key()
         # encrypt the key with the peer's public key
@@ -383,6 +384,7 @@ class TCPHybrid (Server):
         peer_pubkey = self.peer_table.get_user_p_key(peer_ident)
         peer_pubkey = self.crypt.public_str_to_key(peer_pubkey)
         message.extend(self.crypt.rsa_encrypt(sym_key, peer_pubkey))
+        message.extend(self.delimiter)
         # sign the message thus far
         message.extend(self.crypt.rsa_generate_signature(message, self.crypt.private_key))
 

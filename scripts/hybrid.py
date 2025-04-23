@@ -312,7 +312,10 @@ class TCPHybrid (Server):
             encrypted_msg = recv_n(sock, encrypted_msg_len) # (init_vector|sym_key(msg))
             t_print(encrypted_msg)
             init_vector, tmp, encrypted_msg = encrypted_msg.partition(self.delimiter) # init_vector, auth_tag|sym_key(msg)
+            init_vector = bytes(init_vector)
             auth_tag, tmp, encrypted_msg = encrypted_msg.partition(self.delimiter) # auth_tag, sym_key(msg)
+            auth_tag = bytes(auth_tag)
+            encrypted_msg = bytes(encrypted_msg)
             # get the our shared key with this peer
             sym_key = self.peer_table.get_user_s_key(peer_ident)
             sym_key = bytes.fromhex(sym_key)

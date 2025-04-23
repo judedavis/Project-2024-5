@@ -100,8 +100,11 @@ def split_msg (data : bytes) -> tuple:
     Retrieves the header and payload from a message that has already been received
     """
     msg_len = data[0:4]
+    msg_len = int.from_bytes(msg_len, 'little')
     msg_type = data[4:5]
+    msg_type = int.from_bytes(msg_type, 'little')
     session_id = data[5:13]
+    session_id = bytes(session_id)
     payload = data[13:]
     return(msg_len, msg_type, session_id, payload)
 

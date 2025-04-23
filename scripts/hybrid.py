@@ -211,7 +211,7 @@ class TCPHybrid (Server):
 
                 public_key = self.crypt.public_key_from_bytes(public_key) # deserialise public key
                 self.crypt.rsa_verify_signature(signature, signed_message, public_key)
-                self.set_and_check_event(msg_type, addr, session_id, (ident.hex(), public_key), True)
+                self.set_and_check_event(msg_type, addr, session_id, (ident, public_key), True)
             else: # no attached data
                 self.set_and_check_event(msg_type, addr, session_id, None, False)
             

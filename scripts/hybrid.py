@@ -179,15 +179,37 @@ class TCPHybrid (Server):
                 return # silent treatment
             
         if msg_type == MessageTypes.EXCHANGE_ACK:
-            if data: # ident|peer_public_key|signature(ident|temp_public_key)
-                ident, tmp, data = data.partition(self.delimiter) # identifier
-                ident = bytes(ident)
-                public_key_bytes, tmp, data = data.partition(self.delimiter) # peer_public_key
-                public_key_bytes = bytes(public_key_bytes) 
-                signature, tmp, data = data.partition(self.delimiter)
-                signature = bytes(signature) # signature(ident|peer_public_key)
-                signed_message = b''.join([ident, self.delimiter, public_key_bytes])
-                public_key = self.crypt.public_key_from_bytes(public_key_bytes)
+            """
+            expected message = ident|public_key_len|public_key|signature_len|signature(ident|public_key_len|public_key)
+            """
+            if data:
+                self._create_client(addr, port, sock) # init a new client with the active socket
+
+                # get ident
+                ident = data[offset:offset+16]
+                ident = bytes(ident).hex()
+                offset += 16
+                # get public key length
+                public_key_len = data[offset:offset+4]
+                public_key_len = int.from_bytes(public_key_len, 'little')
+                offset += 4
+                # get public key
+                public_key = data[offset:offset+public_key_len]
+                public_key = bytes(public_key)
+                offset += public_key_len
+                # get signed message
+                signed_message = data[0:offset]
+                signed_message = bytes(signed_message)
+                # get signature length
+                signature_len = data[offset:offset+4]
+                signature_len = int.from_bytes(signature_len, 'little')
+                offset += 4
+                # get signature
+                signature = data[offset:offset+signature_len]
+                signature = bytes(signature)
+                offset += signature_len
+
+                public_key = self.crypt.public_key_from_bytes(public_key) # deserialise public key
                 self.crypt.rsa_verify_signature(signature, signed_message, public_key)
                 self.set_and_check_event(msg_type, addr, session_id, (ident.hex(), public_key), True)
             else: # no attached data

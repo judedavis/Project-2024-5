@@ -439,7 +439,7 @@ class TCPHybrid (Server):
 
     def receieve_handshake(self, addr : str, session_id : bytes, sym_key : str, peer_ident : bytes) -> bool:
         # commit sym_key to peer_table
-        peer_ident = peer_ident.hex()
+        peer_ident = str(peer_ident.hex())
         self.peer_table.update_user_s_key(peer_ident, sym_key)
         # message = rand|signatute(rand)
         message = bytearray()

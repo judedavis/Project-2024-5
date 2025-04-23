@@ -24,6 +24,7 @@ class TCPHybrid (Server):
         self.peer_table = PeerTable() # Init the DB
         self.crypt = Crpyt(self.peer_table) # init the local keys
         self.encrypted_prefix = bytes.fromhex('1c1c')
+        self.unencrypted_prefix = bytes.fromhex('0000')
 
     # OVERRIDDEN
     def _handle_connection(self, sock : s.socket, addr : list) -> None:
@@ -334,7 +335,7 @@ class TCPHybrid (Server):
             payload = bytearray()
         msg = create_message(payload, msg_type, session_id)
         # unencrypted messages are preceeded by an empty byte
-        msg = b''.join([bytes(4), msg]) # 00000000|msg
+        msg = b''.join([self.unencrypted_prefix, msg]) # 00000000|msg
         t_print(msg)
         return client_obj.send_message(msg)
     
@@ -343,7 +344,7 @@ class TCPHybrid (Server):
         Recieve messages both encrypted and unencrypted
         """
         encrypt_flag = recv_n(sock, 4)
-        if encrypt_flag == bytes.fromhex('1c1c1c1c'): # if message is encrypted (starts with 2 delims)
+        if encrypt_flag == self.encrypted_prefix: # if message is encrypted (starts with 2 delims)
             # expected message = encrypted_prefix|ident|init_vector|auth_tag_len|auth_tag|encrypted_msg_len|encrypted_msg
             # receieve ident
             peer_ident = recv_n(sock, 16)
@@ -372,7 +373,7 @@ class TCPHybrid (Server):
             msg_len, msg_type, session_id, data = split_msg(msg)
             return (msg_len, msg_type, session_id, data)
             
-        if encrypt_flag == bytes.fromhex('00000000'): # if message is not encrypted (2 null bytes followed by delim)
+        if encrypt_flag == self.unencrypted_prefix: # if message is not encrypted (2 null bytes followed by delim)
             msg_len, msg_type, session_id, data = recv_msg(sock) # receieve the unencrypted message
             return (msg_len, msg_type, session_id, data)
     

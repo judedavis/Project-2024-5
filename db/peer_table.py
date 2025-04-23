@@ -178,7 +178,7 @@ class PeerTable ():
                                                                                                 lastSeenTime)
             t_print(command)
             conn.execute(command)
-        self.conn.commit()
+        conn.commit()
         conn.close()
         return True
     

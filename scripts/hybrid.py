@@ -310,9 +310,7 @@ class TCPHybrid (Server):
             encrypted_msg_len = int.from_bytes(encrypted_msg_len, 'little')
             # receieve init_vector and encrypted message
             encrypted_msg = recv_n(sock, encrypted_msg_len) # (init_vector|sym_key(msg))
-            messages = encrypted_msg.split(self.delimiter)
-            init_vector = messages[0] # init_vector
-            encrypted_msg = messages[1] # sym_key(msg)
+            init_vector, tmp, encrypted_msg = encrypted_msg.partition(self.delimiter) # init_vector, sym_key(msg)
             # get the our shared key with this peer
             sym_key = self.peer_table.get_user_s_key(peer_ident)
             sym_key = bytes.fromhex(sym_key)
@@ -341,12 +339,18 @@ class TCPHybrid (Server):
             payload = bytearray()
         msg = create_message(payload, msg_type, session_id)
         encrypted_msg, init_vector = self.crypt.sym_encrypt(msg, sym_key) # 4 byte unsigned length allows for a very large encrypted message size (much larger than we'll ever need)
-        encrypted_msg = b''.join([init_vector, encrypted_msg])
+        t_print(encrypted_msg)
+        t_print(init_vector)
+        encrypted_msg = b''.join([init_vector, self.delimiter, encrypted_msg])
+        t_print(encrypted_msg)
         encrypted_msg_len = len(encrypted_msg).to_bytes(4, 'little')
+        t_print(encrypted_msg_len)
         ident = self.peer_table.get_host_identifier() # get ident
         ident = bytes.fromhex(ident) # convert to bytes
+        t_print(ident)
         # two delimiters preceeds any data to tell the receiever this message is encrypted
         encrypted_msg = b''.join([self.delimiter, self.delimiter, ident, encrypted_msg_len, encrypted_msg]) # ||ident.message_len.(init_vector|sym_key(msg))
+        t_print(encrypted_msg)
         return client_obj.send_message(encrypted_msg)
 
     def _generate_session_id(self) -> bytes:
@@ -387,6 +391,8 @@ class TCPHybrid (Server):
         message.extend(self.delimiter)
         # sign the message thus far
         message.extend(self.crypt.rsa_generate_signature(message, self.crypt.private_key))
+        # save symmetric key to peer_table (is this too early?)
+        self.peer_table.update_user_s_key(peer_ident, sym_key.hex())
 
         # send HANDSHAKE_REQ and wait for HANDSHAKE_ACK
         self._send_and_wait(addr,

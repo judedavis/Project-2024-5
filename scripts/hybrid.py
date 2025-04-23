@@ -64,6 +64,7 @@ class TCPHybrid (Server):
             signature = bytes(signature)
             peer_ident = self.peer_table.get_identifier_by_last_addr(addr)
             peer_pubkey = self.peer_table.get_user_p_key(peer_ident)
+            peer_pubkey = self.crypt.public_str_to_key(peer_pubkey)
             self.crypt.rsa_verify_signature(signature, rand, peer_pubkey)
             self.set_and_check_event(msg_type, addr, session_id, data)
 
@@ -75,6 +76,7 @@ class TCPHybrid (Server):
             signature = bytes(signature)
             peer_ident = self.peer_table.get_identifier_by_last_addr(addr)
             peer_pubkey = self.peer_table.get_user_p_key(peer_ident)
+            peer_pubkey = self.crypt.public_str_to_key(peer_pubkey)
             self.crypt.rsa_verify_signature(signature, rand, peer_pubkey)
             self.set_and_check_event(msg_type, addr, session_id, data)
 
@@ -432,8 +434,6 @@ class TCPHybrid (Server):
 
         # send HANDSHAKE_FINAL_2
         self._send_encrypted_message(addr, self.port, MessageTypes.HANDSHAKE_ACK_2, session_id, sym_key, message)
-
-
         t_print("Handshake finished!")
         return True
 

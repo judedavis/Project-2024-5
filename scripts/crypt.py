@@ -72,13 +72,12 @@ class Crpyt():
     def generate_private_key(self) -> rsa.RSAPrivateKey:
         return rsa.generate_private_key(65537, self.rsa_key_size)
     
-    def rsa_decrypt(self, ciphertext : bytes) -> str:
+    def rsa_decrypt(self, ciphertext : bytes) -> bytes:
         plaintext = self.private_key.decrypt(ciphertext=ciphertext,
                                              padding=self.padding_algo(
                                                 mgf=padding.MGF1(algorithm=self.hash_algo()),
                                                 algorithm=self.hash_algo(),
                                                 label=None))
-        plaintext.decode('utf-8')
         return plaintext
     
     def rsa_encrypt(self, plaintext : bytes, public_key : rsa.RSAPublicKey = None) -> bytes:

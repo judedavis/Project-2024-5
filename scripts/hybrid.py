@@ -42,10 +42,12 @@ class TCPHybrid (Server):
             self._create_client(addr, port, sock) # init a new client with the active socket
             t_print(data)
             # expected message = ident|public_key(sym_key)|signature(ident|public_key(sym_key))
-            messages = data.split(self.delimiter)
-            peer_ident = bytes(messages[0]) # the peer's identifier
-            encrypted_sym_key = bytes(messages[1]) # symmetric key encrypted with our public key
-            signature = bytes(messages[2:]) # signature generated with the peer's private key
+            peer_ident, tmp, data = data.partition(self.delimiter) # the peer's identifier
+            peer_ident = bytes(peer_ident)
+            encrypted_sym_key, tmp, data = data.partition(self.delimiter) # symmetric key encrypted with our public key
+            encrypted_sym_key = bytes(encrypted_sym_key) 
+            signature, tmp, data = data.partition(self.delimiter)
+            signature = bytes(signature) # signature generated with the peer's private key
             signed_message = b''.join([peer_ident, self.delimiter, encrypted_sym_key]) # ident|public_key(sym_key)
             peer_pubkey = self.peer_table.get_user_p_key(peer_ident)
             peer_pubkey = self.crypt.public_str_to_key(peer_pubkey) # retrieve the peer's public key for verification of the signature
@@ -290,7 +292,7 @@ class TCPHybrid (Server):
         msg = create_message(payload, msg_type, session_id)
         t_print(msg)
         # unencrypted messages are preceeded by an empty byte
-        msg = b''.join([bytes(2), self.delimiter, msg]) # 00|msg
+        msg = b''.join([bytes(2), self.delimiter, msg]) # 0000|msg
         return client_obj.send_message(msg)
     
     def _receive_message(self, sock : s.socket):

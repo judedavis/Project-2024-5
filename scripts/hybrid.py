@@ -565,7 +565,7 @@ class TCPHybrid (Server):
         # get symmetric key from peer table
         peer_ident = self.peer_table.get_identifier_by_last_addr(addr)
         sym_key = self.peer_table.get_user_s_key(peer_ident)
-        sym_key = bytes(sym_key)
+        sym_key = bytes.fromhex(sym_key)
         # send encrypted data
         self._send_encrypted_and_wait(addr,
                                       self.port,
@@ -597,7 +597,7 @@ class TCPHybrid (Server):
         # get symmetric key from peer table
         peer_ident = self.peer_table.get_identifier_by_last_addr(addr)
         sym_key = self.peer_table.get_user_s_key(peer_ident)
-        sym_key = bytes(sym_key)
+        sym_key = bytes.fromhex(sym_key)
         # send encrypted data
         self._send_encrypted_and_wait(addr,
                                       self.port,

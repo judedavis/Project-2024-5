@@ -335,7 +335,7 @@ class TCPHybrid (Server):
             payload = bytearray()
         msg = create_message(payload, msg_type, session_id)
         # unencrypted messages are preceeded by an empty byte
-        msg = b''.join([self.unencrypted_prefix, msg]) # 00000000|msg
+        msg = b''.join([self.unencrypted_prefix, msg]) # 0000|msg
         t_print(msg)
         return client_obj.send_message(msg)
     
@@ -343,7 +343,7 @@ class TCPHybrid (Server):
         """
         Recieve messages both encrypted and unencrypted
         """
-        encrypt_flag = recv_n(sock, 4)
+        encrypt_flag = recv_n(sock, 2)
         if encrypt_flag == self.encrypted_prefix: # if message is encrypted (starts with 2 delims)
             # expected message = encrypted_prefix|ident|init_vector|auth_tag_len|auth_tag|encrypted_msg_len|encrypted_msg
             # receieve ident

@@ -127,7 +127,8 @@ class TCPHybrid (Server):
             pass
         
         if msg_type == MessageTypes.UPDATE_PEERS_REQ:
-            self.receive_update_peers(addr, session_id)
+            payload = data
+            self.receive_update_peers(addr, session_id, payload)
 
         if msg_type == MessageTypes.UPDATE_PEERS_ACK:
             self.set_and_check_event(msg_type, addr, session_id, data)
@@ -553,11 +554,26 @@ class TCPHybrid (Server):
     def request_update_peers(self, addr : str, session_id : bytes = None) -> bool:
         if (not session_id):
             session_id = self._generate_session_id()
-        self._send_and_wait(addr,
-                            self.port,
-                            MessageTypes.UPDATE_PEERS_REQ,
-                            MessageTypes.UPDATE_PEERS_ACK,
-                            session_id)
+
+        message = bytearray()
+        # get peertable payload
+        payload = self.peer_table.get_serialised_peers()
+        # get payload len
+        payload_len = len(payload).to_bytes(4, 'little')
+        message.extend(payload_len)
+        message.extend(payload)
+        # get symmetric key from peer table
+        peer_ident = self.peer_table.get_identifier_by_last_addr(addr)
+        sym_key = self.peer_table.get_user_s_key(peer_ident)
+        sym_key = bytes(sym_key)
+        # send encrypted data
+        self._send_encrypted_and_wait(addr,
+                                      self.port,
+                                      MessageTypes.UPDATE_PEERS_REQ,
+                                      MessageTypes.UPDATE_PEERS_ACK,
+                                      session_id,
+                                      sym_key,
+                                      message)
         self._send_and_wait(addr,
                             self.port,
                             MessageTypes.UPDATE_PEERS_ACK_2,
@@ -567,12 +583,30 @@ class TCPHybrid (Server):
         t_print("Update Peer Table finished!")
         return True
     
-    def receive_update_peers(self, addr : str, session_id : bytes) -> bool:
-        self._send_and_wait(addr,
-                            self.port,
-                            MessageTypes.UPDATE_PEERS_ACK,
-                            MessageTypes.UPDATE_PEERS_ACK_2,
-                            session_id)
+    def receive_update_peers(self, addr : str, session_id : bytes, payload : bytes) -> bool:
+        # update the peer table with serialised rows
+        self.peer_table.update_serialised_peers(payload)
+
+        message = bytearray()
+        # get peertable payload
+        payload = self.peer_table.get_serialised_peers()
+        # get payload len
+        payload_len = len(payload).to_bytes(4, 'little')
+        message.extend(payload_len)
+        message.extend(payload)
+        # get symmetric key from peer table
+        peer_ident = self.peer_table.get_identifier_by_last_addr(addr)
+        sym_key = self.peer_table.get_user_s_key(peer_ident)
+        sym_key = bytes(sym_key)
+        # send encrypted data
+        self._send_encrypted_and_wait(addr,
+                                      self.port,
+                                      MessageTypes.UPDATE_PEERS_ACK,
+                                      MessageTypes.UPDATE_PEERS_ACK_2,
+                                      session_id,
+                                      sym_key,
+                                      message)
+
         self._send_and_wait(addr,
                             self.port,
                             MessageTypes.UPDATE_PEERS_FINAL_1,

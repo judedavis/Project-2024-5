@@ -185,9 +185,9 @@ class PeerTable ():
         serialised_rows = pickle.dumps(rows, 5) # serialise the returned rows
         return serialised_rows
     
-    def update_serialised_peers(self, serialised_rows : bytes):
+    def update_serialised_peers(self, serialised_rows : bytes) -> bool:
         rows = pickle.loads(serialised_rows)
-
+        return self.update_peers(rows)
     
     def new_host(self, ident : str,
                 p_key : str,

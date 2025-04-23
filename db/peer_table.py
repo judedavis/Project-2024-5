@@ -176,7 +176,9 @@ class PeerTable ():
                                                                                                 self._str_format(pubKey),
                                                                                                 self._str_format(lastSeenAddress),
                                                                                                 lastSeenTime)
+            t_print(command)
             conn.execute(command)
+        self.conn.commit()
         conn.close()
         return True
     

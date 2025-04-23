@@ -576,12 +576,13 @@ class TCPHybrid (Server):
         # update the peer table with serialised rows
         self.peer_table.update_serialised_peers(payload)
 
-        self._send_and_wait(addr,
+        self._send_encrypted_and_wait(addr,
                             self.port,
                             MessageTypes.UPDATE_PEERS_ACK_2,
                             MessageTypes.UPDATE_PEERS_FINAL_1,
-                            session_id)
-        self._send_message(addr, self.port, MessageTypes.UPDATE_PEERS_FINAL_2, session_id)
+                            session_id,
+                            sym_key)
+        
         t_print("Update Peer Table finished!")
         return True
     
@@ -606,11 +607,7 @@ class TCPHybrid (Server):
                                       sym_key,
                                       message)
 
-        self._send_and_wait(addr,
-                            self.port,
-                            MessageTypes.UPDATE_PEERS_FINAL_1,
-                            MessageTypes.UPDATE_PEERS_FINAL_2,
-                            session_id)
+        self._send_encrypted_message(addr, self.port, MessageTypes.UPDATE_PEERS_FINAL_1, session_id, sym_key)
         t_print("Update Peer Table finished!")
         return True
     

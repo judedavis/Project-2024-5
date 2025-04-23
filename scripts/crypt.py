@@ -123,10 +123,11 @@ class Crpyt():
         cipher = Cipher(algorithm=algorithms.AES(sym_key), mode=modes.GCM(init_vector))
         encryptor = cipher.encryptor()
         ciphertext = encryptor.update(plaintext) + encryptor.finalize()
-        return (ciphertext, init_vector)
+        auth_tag = encryptor.tag
+        return (ciphertext, init_vector, auth_tag)
     
-    def sym_decrypt(self, ciphertext : bytes, sym_key : bytes, init_vector : bytes) -> bytes:
+    def sym_decrypt(self, ciphertext : bytes, sym_key : bytes, init_vector : bytes, auth_tag : bytes) -> bytes:
         cipher = Cipher(algorithm=algorithms.AES(sym_key), mode=modes.GCM(init_vector))
         decryptor = cipher.decryptor()
-        plaintext = decryptor.update(ciphertext) + decryptor.finalize()
+        plaintext = decryptor.update(ciphertext) + decryptor.finalize_with_tag(auth_tag)
         return plaintext

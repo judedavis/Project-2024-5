@@ -301,21 +301,23 @@ class TCPHybrid (Server):
         """
         encrypt_flag = recv_n(sock, 4)
         if encrypt_flag == bytes.fromhex('1c1c1c1c'): # if message is encrypted (starts with 2 delims)
-            # expected message = ident.message_len.(init_vector|sym_key(msg))
+            # expected message = ident.message_len.init_vector|auth_tag|sym_key(msg)
             # receieve ident
             peer_ident = recv_n(sock, 16)
             peer_ident = peer_ident.hex()
             # receieve message_len
             encrypted_msg_len = recv_n(sock, 4) # message_len
             encrypted_msg_len = int.from_bytes(encrypted_msg_len, 'little')
-            # receieve init_vector and encrypted message
+            # receieve init_vector auth_tag and encrypted message
             encrypted_msg = recv_n(sock, encrypted_msg_len) # (init_vector|sym_key(msg))
-            init_vector, tmp, encrypted_msg = encrypted_msg.partition(self.delimiter) # init_vector, sym_key(msg)
+            t_print(encrypted_msg)
+            init_vector, tmp, encrypted_msg = encrypted_msg.partition(self.delimiter) # init_vector, auth_tag|sym_key(msg)
+            auth_tag, tmp, encrypted_msg = encrypted_msg.partition(self.delimiter) # auth_tag, sym_key(msg)
             # get the our shared key with this peer
             sym_key = self.peer_table.get_user_s_key(peer_ident)
             sym_key = bytes.fromhex(sym_key)
             # decrypt the message
-            msg = self.crypt.sym_decrypt(encrypted_msg, sym_key, init_vector)
+            msg = self.crypt.sym_decrypt(encrypted_msg, sym_key, init_vector, auth_tag)
             # unpack the message
             msg_len, msg_type, session_id, data = split_msg(msg)
             return (msg_len, msg_type, session_id, data)
@@ -338,19 +340,13 @@ class TCPHybrid (Server):
         if not payload:
             payload = bytearray()
         msg = create_message(payload, msg_type, session_id)
-        encrypted_msg, init_vector = self.crypt.sym_encrypt(msg, sym_key) # 4 byte unsigned length allows for a very large encrypted message size (much larger than we'll ever need)
-        t_print(encrypted_msg)
-        t_print(init_vector)
-        encrypted_msg = b''.join([init_vector, self.delimiter, encrypted_msg])
-        t_print(encrypted_msg)
+        encrypted_msg, init_vector, auth_tag = self.crypt.sym_encrypt(msg, sym_key) # 4 byte unsigned length allows for a very large encrypted message size (much larger than we'll ever need)
+        encrypted_msg = b''.join([init_vector, self.delimiter, auth_tag, self.delimiter, encrypted_msg])
         encrypted_msg_len = len(encrypted_msg).to_bytes(4, 'little')
-        t_print(encrypted_msg_len)
         ident = self.peer_table.get_host_identifier() # get ident
         ident = bytes.fromhex(ident) # convert to bytes
-        t_print(ident)
         # two delimiters preceeds any data to tell the receiever this message is encrypted
-        encrypted_msg = b''.join([self.delimiter, self.delimiter, ident, encrypted_msg_len, encrypted_msg]) # ||ident.message_len.(init_vector|sym_key(msg))
-        t_print(encrypted_msg)
+        encrypted_msg = b''.join([self.delimiter, self.delimiter, ident, encrypted_msg_len, encrypted_msg]) # ||ident.message_len.(init_vector|auth_tag|sym_key(msg))
         return client_obj.send_message(encrypted_msg)
 
     def _generate_session_id(self) -> bytes:

@@ -588,7 +588,7 @@ class TCPHybrid (Server):
 
         peer_ident, peer_public_key = self._send_and_wait(addr,
                             self.port,
-                            MessageTypes.EXCHANGE_REQ, # ident|public_key|signature(ident|public_key)
+                            MessageTypes.EXCHANGE_REQ, # send req
                             MessageTypes.EXCHANGE_ACK, # wait for ack
                             session_id,
                             message)
@@ -614,23 +614,31 @@ class TCPHybrid (Server):
         """
         if not peer_public_key: # if we didn't recieve any data, or if the event failed, exit
             return None
-        message = bytearray() # create (ident|public_key|signature(ident|public_key))
+        # message = ident|public_key_len|public_key|signature_len|signature(ident|public_key_len|public_key)
+        message = bytearray() 
+        # add ident
         ident = self.peer_table.get_host_identifier()
         message.extend(bytes.fromhex(ident)) # ident
-        message.extend(self.delimiter) # |
-        message.extend(self.crypt.public_key_to_bytes(self.crypt.public_key)) # public_key
+        # add public_key_len
+        public_key = self.crypt.public_key_to_bytes(self.crypt.public_key)
+        public_key_len = len(public_key).to_bytes(4, 'little')
+        message.extend(public_key_len)
+        # add public key
+        message.extend(public_key)
+        # add signature length
         signature = self.crypt.rsa_generate_signature(message, self.crypt.private_key) # sign the message thus far
-        
-        self.crypt.rsa_verify_signature(signature, message, self.crypt.public_key)
+        signature_len = len(signature).to_bytes(4, 'little')
+        message.extend(signature_len)
+        # add signature
+        message.extend(signature)
 
-        message.extend(self.delimiter) # |
-        message.extend(signature) # signature(ident|public_key)
         self._send_and_wait(addr,
                             self.port,
-                            MessageTypes.EXCHANGE_ACK, # ident|public_key|signature(ident|public_key)
+                            MessageTypes.EXCHANGE_ACK, # send req
                             MessageTypes.EXCHANGE_ACK_2, # wait for ack
                             session_id,
                             message)
+        
         self._send_message(addr, self.port, MessageTypes.EXCHANGE_FINAL, session_id) # send final ack
         peer_public_key_str = self.crypt.public_key_to_bytes(peer_public_key).decode('utf-8') # convert to suitable format for PeerTable
         self.peer_table.new_user(peer_public_key_str, peer_ident, addr, time()) # add peer to peer to table

@@ -557,9 +557,6 @@ class TCPHybrid (Server):
         message = bytearray()
         # get peertable payload
         payload = self.peer_table.get_serialised_peers()
-        # get payload len
-        payload_len = len(payload).to_bytes(4, 'little')
-        message.extend(payload_len)
         message.extend(payload)
         # get symmetric key from peer table
         peer_ident = self.peer_table.get_identifier_by_last_addr(addr)
@@ -589,9 +586,6 @@ class TCPHybrid (Server):
         message = bytearray()
         # get peertable payload
         payload = self.peer_table.get_serialised_peers()
-        # get payload len
-        payload_len = len(payload).to_bytes(4, 'little')
-        message.extend(payload_len)
         message.extend(payload)
         # get symmetric key from peer table
         peer_ident = self.peer_table.get_identifier_by_last_addr(addr)

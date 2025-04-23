@@ -49,7 +49,7 @@ class TCPHybrid (Server):
             signature, tmp, data = data.partition(self.delimiter)
             signature = bytes(signature) # signature generated with the peer's private key
             signed_message = b''.join([peer_ident, self.delimiter, encrypted_sym_key]) # ident|public_key(sym_key)
-            peer_pubkey = self.peer_table.get_user_p_key(peer_ident)
+            peer_pubkey = self.peer_table.get_user_p_key(peer_ident.hex())
             peer_pubkey = self.crypt.public_str_to_key(peer_pubkey) # retrieve the peer's public key for verification of the signature
             self.crypt.rsa_verify_signature(signature, signed_message, peer_pubkey)
             sym_key = self.crypt.rsa_decrypt(encrypted_sym_key)

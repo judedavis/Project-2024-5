@@ -1,4 +1,5 @@
 import sqlite3
+import pickle
 from scripts.shared import *
 
 class PeerTable ():
@@ -48,13 +49,23 @@ class PeerTable ():
         
     ## Getters and Setters
     def get_identifier_by_last_addr(self, last_addr : str):
-        command = """SELECT identifier FROM PeerTable WHERE lastSeenAddress = {0}""".format(self._str_format(last_addr))
+        command = """SELECT identifier, lastSeenTime FROM PeerTable WHERE lastSeenAddress = {0}""".format(self._str_format(last_addr))
         conn = sqlite3.connect(self.file_path)
         cursor = conn.cursor() # create cursor
         cursor.execute(command)
-        row = cursor.fetchone()[0]
+        rows = cursor.fetchall()
+        if not rows:
+            return None
+        latest = 0
+        ident = None
+        for peer in rows: # gets the identifier of the peer who used that address most recently
+            identifier = peer[0]
+            lastSeenTime = peer[1]
+            if lastSeenTime > latest:
+                latest = lastSeenTime
+                ident = identifier
         conn.close()
-        return row
+        return ident
 
     def get_user_p_key(self, identifier : str) -> str:
         command = """SELECT pubKey FROM PeerTable WHERE identifier = {0}""".format(self._str_format(identifier))
@@ -140,6 +151,43 @@ class PeerTable ():
         if row:
             return row[0] # retrieve key from returned tuple
         return row # return None
+    
+    def get_peers(self):
+        command = """SELECT identifier, pubKey, lastSeenAddress, lastSeenTime FROM PeerTable"""
+        conn = sqlite3.connect(self.file_path)
+        cursor = conn.cursor() # create cursor
+        cursor.execute(command)
+        rows = cursor.fetchall()
+        conn.close()
+        return rows[1:] # remove the first peer (the host)
+    
+    def update_peers(self, rows : list) -> bool:
+        conn = sqlite3.connect(self.file_path)
+        for peer in rows:
+            identifier = peer[0]
+            pubKey = peer[1]
+            lastSeenAddress = peer[2]
+            lastSeenTime = peer[3]
+            command = """INSERT INTO PeerTable(identifier, pubKey, lastSeenAddress, lastSeenTime)
+                            VALUES ({0}, {1}, {2}, {3})
+                            ON CONFLICT(identifier, pubKey)
+                            DO
+	                            UPDATE SET lastSeenAddress = {2}, lastSeenTime = {3}""".format(self._str_format(identifier),
+                                                                                                self._str_format(pubKey),
+                                                                                                self._str_format(lastSeenAddress),
+                                                                                                lastSeenTime)
+            conn.execute(command)
+        conn.close()
+        return True
+    
+    def get_serialised_peers(self):
+        rows = self.get_peers()
+        serialised_rows = pickle.dumps(rows, 5) # serialise the returned rows
+        return serialised_rows
+    
+    def update_serialised_peers(self, serialised_rows : bytes):
+        rows = pickle.loads(serialised_rows)
+
     
     def new_host(self, ident : str,
                 p_key : str,

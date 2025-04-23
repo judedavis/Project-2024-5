@@ -172,11 +172,11 @@ class PeerTable ():
                             VALUES ({0}, {1}, {2}, {3})
                             ON CONFLICT(identifier)
                             DO
-	                            UPDATE SET lastSeenAddress = {2}, lastSeenTime = {3}""".format(self._str_format(identifier),
-                                                                                                self._str_format(pubKey),
-                                                                                                self._str_format(lastSeenAddress),
-                                                                                                lastSeenTime)
-            t_print(command)
+	                            UPDATE SET lastSeenAddress = {2}, lastSeenTime = {3}
+                                WHERE id != 1""".format(self._str_format(identifier),
+                                                    self._str_format(pubKey),
+                                                    self._str_format(lastSeenAddress),
+                                                    lastSeenTime)
             conn.execute(command)
         conn.commit()
         conn.close()
@@ -184,13 +184,11 @@ class PeerTable ():
     
     def get_serialised_peers(self):
         rows = self.get_peers()
-        t_print(rows)
         serialised_rows = pickle.dumps(rows, 5) # serialise the returned rows
         return serialised_rows
     
     def update_serialised_peers(self, serialised_rows : bytes) -> bool:
         rows = pickle.loads(serialised_rows)
-        t_print(rows)
         return self.update_peers(rows)
     
     def new_host(self, ident : str,

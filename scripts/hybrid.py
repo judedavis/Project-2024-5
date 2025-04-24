@@ -1,6 +1,7 @@
 """
 TODO:
--
+- Finish the rest of the protocol operations
+- Set up reuse of client socket until you disconnect from the network
 - Salvage the code portion of the report, turning it into a implementation header
 - Do more literature review (read some papers dawg)
 """
@@ -701,8 +702,11 @@ class TCPHybrid (Server):
         # the idea so far
         if (not session_id):
             session_id = self._generate_session_id()
-        self._send_message(addr, self.port, MessageTypes.JOIN_NETWORK_REQ, session_id)
-        self.wait_event(MessageTypes.JOIN_NETWORK_ACK, addr, session_id)
+        self._send_and_wait(addr,
+                            self.port,
+                            MessageTypes.JOIN_NETWORK_REQ,
+                            MessageTypes.JOIN_NETWORK_ACK,
+                            session_id)
         self.request_key_exchange(addr, session_id)
         self.request_handshake(addr, session_id)
         self.request_update_peers(addr, session_id)

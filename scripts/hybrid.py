@@ -33,6 +33,7 @@ class TCPHybrid (Server):
         port = addr[1]
         msg_len, msg_type, session_id, data = self._receive_message(sock) # receieve both encrypted and unencrypted messages
         offset = 0
+        self._create_client(addr, port, sock) # init a new client with the active socket
         if data:
             t_print("received message of type: "+str(msg_type))
         else:
@@ -45,7 +46,6 @@ class TCPHybrid (Server):
             """
             expected message = ident|encrypted_sym_len|public_key(sym_key)|signature_len|signature(ident|encrypted_sym_len|public_key(sym_key))
             """
-            self._create_client(addr, port, sock) # init a new client with the active socket
             # get identifier
             peer_ident = data[offset:offset+16] # first 16 bytes is peer identifier
             peer_ident = bytes(peer_ident).hex()
@@ -128,7 +128,7 @@ class TCPHybrid (Server):
             pass
         
         if msg_type == MessageTypes.UPDATE_PEERS_REQ:
-            self._create_client(addr, port, sock) # init a new client with the active socket
+            
             self.receive_update_peers(addr, session_id, data)
 
         if msg_type == MessageTypes.UPDATE_PEERS_ACK:
@@ -148,7 +148,6 @@ class TCPHybrid (Server):
             expected message = ident|public_key_len|public_key|signature_len|signature(ident|public_key_len|public_key)
             """
             if data:
-                self._create_client(addr, port, sock) # init a new client with the active socket
 
                 # get ident
                 ident = data[offset:offset+16]
@@ -185,7 +184,6 @@ class TCPHybrid (Server):
             expected message = ident|public_key_len|public_key|signature_len|signature(ident|public_key_len|public_key)
             """
             if data:
-                self._create_client(addr, port, sock) # init a new client with the active socket
 
                 # get ident
                 ident = data[offset:offset+16]
@@ -225,7 +223,6 @@ class TCPHybrid (Server):
             self.set_and_check_event(msg_type, addr, session_id, data)
 
         if msg_type == MessageTypes.JOIN_NETWORK_REQ:
-            self._create_client(addr, port, sock) # init a new client with the active socket
             self.receive_join_network(addr, session_id)
         
         if msg_type == MessageTypes.JOIN_NETWORK_ACK:

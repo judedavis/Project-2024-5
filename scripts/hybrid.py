@@ -727,6 +727,9 @@ class TCPHybrid (Server):
     
     def receive_join_network(self, addr : str, session_id : bytes) -> bool:
         self._send_message(addr, self.port, MessageTypes.JOIN_NETWORK_ACK, session_id)
+        self._client_response(addr)
+        self._client_response(addr)
+        self._client_response(addr)
         t_print("Join network finished!")
         return True
     

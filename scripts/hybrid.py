@@ -238,7 +238,7 @@ class TCPHybrid (Server):
             self.set_and_check_event(msg_type, addr, session_id, data)
 
         if msg_type == MessageTypes.SEND_DATA_REQ:
-            self.receieve_send_data(addr, session_id)
+            self.receieve_send_data(addr, session_id, data) # pass data as payload
         
         if msg_type == MessageTypes.SEND_DATA_ACK:
             self.set_and_check_event(msg_type, addr, session_id, data)
@@ -726,29 +726,74 @@ class TCPHybrid (Server):
         return True
     
     def request_keep_alive(self, addr : str, session_id : bytes = None) -> bool:
+        """
+        Send an empty encrypted message to the peer and wait for encrypted ack.
+        Encrypted messages automatically update the peer's db entry
+        """
         if (not session_id):
             session_id = self._generate_session_id()
-        self._send_message(addr, self.port, MessageTypes.KEEP_ALIVE_REQ, session_id)
-        self.wait_event(MessageTypes.KEEP_ALIVE_ACK_1, addr, session_id)
+        # retrieve the peer's sym_key
+        peer_ident = self.peer_table.get_identifier_by_last_addr(addr)
+        sym_key = self.peer_table.get_user_s_key(peer_ident)
+        # send keep alive and wait for ack
+        self._send_encrypted_and_wait(addr,
+                                      self.port,
+                                      MessageTypes.KEEP_ALIVE_REQ,
+                                      MessageTypes.KEEP_ALIVE_ACK_1,
+                                      session_id,
+                                      sym_key)
         t_print("Keep Alive finished!")
         return True
     
     def receive_keep_alive(self, addr : str, session_id : bytes) -> bool:
-        self._send_message(addr, self.port, MessageTypes.KEEP_ALIVE_ACK_1, session_id)
+        """
+        Receieve encrypted empty message and send ack.
+        Encrypted messages automatically update the peer's db entry
+        """
+        # retrieve the peer's sym_key
+        peer_ident = self.peer_table.get_identifier_by_last_addr(addr)
+        sym_key = self.peer_table.get_user_s_key(peer_ident)
+        # send ack
+        self._send_encrypted_message(addr, self.port, MessageTypes.KEEP_ALIVE_ACK_1, session_id, sym_key)
         t_print("Keep Alive finished!")
         return True
     
-    def request_send_data(self, addr : str, session_id : bytes = None) -> bool:
+    def request_send_data(self, addr : str, payload : bytes, session_id : bytes = None) -> bool:
+        """
+        Send an encrypted payload to the peer and wait for ack
+        """
         if (not session_id):
             session_id = self._generate_session_id()
-        self._send_message(addr, self.port, MessageTypes.SEND_DATA_REQ, session_id)
-        self.wait_event(MessageTypes.SEND_DATA_ACK, addr, session_id)
+        # retrieve the peer's sym_key
+        peer_ident = self.peer_table.get_identifier_by_last_addr(addr)
+        sym_key = self.peer_table.get_user_s_key(peer_ident)
+        self._send_encrypted_and_wait(addr,
+                                      self.port,
+                                      MessageTypes.SEND_DATA_REQ,
+                                      MessageTypes.SEND_DATA_ACK,
+                                      session_id,
+                                      sym_key,
+                                      payload)
         t_print("Send data finished!")
         return True
     
-    def receieve_send_data(self, addr : str, session_id : bytes) -> bool:
-        self._send_message(addr, self.port, MessageTypes.SEND_DATA_ACK, session_id)
+    def receieve_send_data(self, addr : str, session_id : bytes, payload : bytes) -> bytes:
+        """
+        Recieve encrypted payload from peer and send ack
+        """
+        # retrieve the peer's sym_key
+        peer_ident = self.peer_table.get_identifier_by_last_addr(addr)
+        sym_key = self.peer_table.get_user_s_key(peer_ident)
+        self._send_encrypted_message(addr, self.port, MessageTypes.SEND_DATA_ACK, session_id, sym_key)
         t_print("Send data finished!")
+        return payload
+    
+    def send_no_op(self, addr: str, session_id : bytes) -> bool:
+        """
+        Unused
+        """
+        self._send_message(addr, self.port, MessageTypes.NO_OP, session_id)
+        t_print("No-op sent!")
         return True
 
 

@@ -34,6 +34,7 @@ def resolve_host(addr, port) -> tuple:
     return info[0][4]
 
 class MessageTypes ():
+    NO_OP = 0
     HANDSHAKE_REQ = 1
     HANDSHAKE_ACK = 2
     HANDSHAKE_ACK_2 = 3

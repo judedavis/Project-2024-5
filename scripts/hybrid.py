@@ -705,9 +705,7 @@ class TCPHybrid (Server):
                             MessageTypes.JOIN_NETWORK_REQ,
                             MessageTypes.JOIN_NETWORK_ACK,
                             session_id)
-        sleep(2)
         self.request_key_exchange(addr, session_id)
-        sleep(2)
         self.request_handshake(addr, session_id)
         self.request_update_peers(addr, session_id)
         t_print("Join network finished!")
@@ -715,6 +713,7 @@ class TCPHybrid (Server):
     
     def receive_join_network(self, addr : str, session_id : bytes) -> bool:
         self._send_message(addr, self.port, MessageTypes.JOIN_NETWORK_ACK, session_id)
+        self._client_response(addr)
         self.async_wait_event(MessageTypes.UPDATE_PEERS_FINAL_2, addr, session_id) # wait until the update peers function is complete
         t_print("Join network finished!")
         return True

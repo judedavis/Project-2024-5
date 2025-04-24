@@ -225,6 +225,7 @@ class TCPHybrid (Server):
             self.set_and_check_event(msg_type, addr, session_id, data)
 
         if msg_type == MessageTypes.JOIN_NETWORK_REQ:
+            self._create_client(addr, port, sock) # init a new client with the active socket
             self.receive_join_network(addr, session_id)
         
         if msg_type == MessageTypes.JOIN_NETWORK_ACK:

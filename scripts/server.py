@@ -37,7 +37,7 @@ class Server (SockObj):
         while self.stay_alive:
             conn, addr = self.sock.accept()
             t_print("Incoming connection from "+str(addr[0])+" on port "+str(addr[1]))
-            conn_thread = t.Thread(target=self._handle_connection, name="connnection-"+str(thread_count), args=[conn, addr])
+            conn_thread = t.Thread(target=self._handle_connection, name="connnection-"+str(thread_count), args=[conn, addr, True])
             self.threads[conn_thread.ident] = conn_thread
             self.threads[conn_thread.ident].start()
             thread_count+=1

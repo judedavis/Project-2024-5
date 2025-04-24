@@ -1,6 +1,7 @@
 import sqlite3
 import pickle
 from scripts.shared import *
+from threading import Condition
 
 class PeerTable ():
     """
@@ -10,6 +11,8 @@ class PeerTable ():
     record 0 represents the host
     """
     def __init__(self, file_path : str = "./db/peerTable") -> None:
+        self.db_lock = Condition()
+        self.lock_timeout = 10 # 10 seconds
         # Our hardcoded commands for easy reference
         self.file_path = file_path
         self.commands = {
@@ -37,18 +40,21 @@ class PeerTable ():
         return string
     
     def check_if_identifier_exists(self, identifier : str) -> bool:
+        self.db_lock.acquire() # try to acquire the db lock
         command = """SELECT identifier FROM PeerTable WHERE identifier = {0}""".format(self._str_format(identifier))
         conn = sqlite3.connect(self.file_path)
         cursor = conn.cursor() # create cursor
         cursor.execute(command)
         row = cursor.fetchone()
         conn.close()
+        self.db_lock.release() # release the lock
         if row:
             return True
         return False
         
     ## Getters and Setters
     def get_identifier_by_last_addr(self, last_addr : str):
+        self.db_lock.acquire() # try to acquire the db lock
         command = """SELECT identifier, lastSeenTime FROM PeerTable WHERE lastSeenAddress = {0}""".format(self._str_format(last_addr))
         conn = sqlite3.connect(self.file_path)
         cursor = conn.cursor() # create cursor
@@ -65,103 +71,125 @@ class PeerTable ():
                 latest = lastSeenTime
                 ident = identifier
         conn.close()
+        self.db_lock.release() # release the lock
         return ident
 
     def get_user_p_key(self, identifier : str) -> str:
+        self.db_lock.acquire() # try to acquire the db lock
         command = """SELECT pubKey FROM PeerTable WHERE identifier = {0}""".format(self._str_format(identifier))
         conn = sqlite3.connect(self.file_path)
         cursor = conn.cursor() # create cursor
         cursor.execute(command)
         row = cursor.fetchone()[0]
         conn.close()
+        self.db_lock.release() # release the lock
         return row
 
     def update_user_s_key(self, identifier : str, new_s_key : str) -> str:
+        self.db_lock.acquire() # try to acquire the db lock
         command = """UPDATE PeerTable SET symKey = {0} WHERE identifier = {1}""".format(self._str_format(new_s_key), self._str_format(identifier))
         conn = sqlite3.connect(self.file_path)
         cursor = conn.cursor() # create cursor
         cursor.execute(command)
         conn.commit()
         conn.close()
+        self.db_lock.release() # release the lock
         return True
     
     def get_user_s_key(self, identifier : str) -> str:
+        self.db_lock.acquire() # try to acquire the db lock
         command = """SELECT symKey FROM PeerTable WHERE identifier = {0}""".format(self._str_format(identifier))
         conn = sqlite3.connect(self.file_path)
         cursor = conn.cursor() # create cursor
         cursor.execute(command)
         row = cursor.fetchone()[0]
         conn.close()
+        self.db_lock.release() # release the lock
         return row
 
     def update_user_last_address(self, identifier : str, last_address : str) -> bool:
+        self.db_lock.acquire() # try to acquire the db lock
         command = """UPDATE PeerTable SET lastSeenAddress={0} WHERE identifier = {1}""".format(self._str_format(last_address), self._str_format(identifier))
         conn = sqlite3.connect(self.file_path)
         cursor = conn.cursor() # create cursor
         cursor.execute(command)
         conn.commit()
         conn.close()
+        self.db_lock.release() # release the lock
         return True
     
     def get_user_last_address(self, identifier : str) -> str:
+        self.db_lock.acquire() # try to acquire the db lock
         command = """SELECT lastSeenAddress FROM PeerTable WHERE identifier = {0}""".format(self._str_format(identifier))
         conn = sqlite3.connect(self.file_path)
         cursor = conn.cursor() # create cursor
         cursor.execute(command)
         row = cursor.fetchone()[0]
         conn.close()
+        self.db_lock.release() # release the lock
         return row
     
     def update_user_last_time(self, identifier : str, last_time : float) -> bool:
+        self.db_lock.acquire() # try to acquire the db lock
         command = """UPDATE PeerTable SET lastSeenTime={0} WHERE identifier = {1}""".format(last_time, self._str_format(identifier))
         conn = sqlite3.connect(self.file_path)
         cursor = conn.cursor() # create cursor
         cursor.execute(command)
         conn.commit()
         conn.close()
+        self.db_lock.release() # release the lock
         return True
     
     def get_user_last_time(self, identifier : str) -> float:
+        self.db_lock.acquire() # try to acquire the db lock
         command = """SELECT lastSeenTime FROM PeerTable WHERE identifier = {0}""".format(self._str_format(identifier))
         conn = sqlite3.connect(self.file_path)
         cursor = conn.cursor() # create cursor
         cursor.execute(command)
         row = cursor.fetchone()[0]
         conn.close()
+        self.db_lock.release() # release the lock
         return row
     
     def get_host_identifier(self) -> str:
+        self.db_lock.acquire() # try to acquire the db lock
         command = """SELECT identifier FROM PeerTable WHERE id=1"""
         conn = sqlite3.connect(self.file_path)
         cursor = conn.cursor() # create cursor
         cursor.execute(command)
         row = cursor.fetchone()
         conn.close()
+        self.db_lock.release() # release the lock
         if row:
             return row[0]
         return row
     
     def get_host_key(self) -> str:
+        self.db_lock.acquire() # try to acquire the db lock
         command  = """SELECT pubKey FROM PeerTable WHERE id=1"""
         conn = sqlite3.connect(self.file_path)
         cursor = conn.cursor() # create cursor
         cursor.execute(command)
         row = cursor.fetchone()
         conn.close()
+        self.db_lock.release() # release the lock
         if row:
             return row[0] # retrieve key from returned tuple
         return row # return None
     
     def get_peers(self):
+        self.db_lock.acquire() # try to acquire the db lock
         command = """SELECT identifier, pubKey, lastSeenAddress, lastSeenTime FROM PeerTable"""
         conn = sqlite3.connect(self.file_path)
         cursor = conn.cursor() # create cursor
         cursor.execute(command)
         rows = cursor.fetchall()
         conn.close()
+        self.db_lock.release() # release the lock
         return rows[1:] # remove the first peer (the host)
     
     def update_peers(self, rows : list) -> bool:
+        self.db_lock.acquire() # try to acquire the db lock
         conn = sqlite3.connect(self.file_path)
         for peer in rows:
             identifier = peer[0]
@@ -180,6 +208,7 @@ class PeerTable ():
             conn.execute(command)
         conn.commit()
         conn.close()
+        self.db_lock.release() # release the lock
         return True
     
     def get_serialised_peers(self):
@@ -199,6 +228,7 @@ class PeerTable ():
         """
         Adds a new host to the database
         """
+        self.db_lock.acquire() # try to acquire the db lock
         command = """INSERT INTO PeerTable(id, identifier, pubKey, lastSeenAddress, lastSeenTime) VALUES({0}, {1}, {2}, {3}, {4});""".format(id,
                                                                                                                             self._str_format(ident),    
                                                                                                                             self._str_format(p_key),
@@ -210,10 +240,12 @@ class PeerTable ():
             cursor.execute(command)
             conn.commit()
             conn.close()
+            self.db_lock.release() # release the lock
             t_print("Added new host to db")
         except sqlite3.IntegrityError:
             t_print("host already exists.")
             conn.close()
+            self.db_lock.release() # release the lock
             return False
         return True
 
@@ -225,6 +257,7 @@ class PeerTable ():
         """
         Adds a new user to the database
         """
+        self.db_lock.acquire() # try to acquire the db lock
         command = """INSERT INTO PeerTable(pubKey, identifier, symKey, lastSeenAddress, lastSeenTime) VALUES({0}, {1}, {2}, {3}, {4});""".format(self._str_format(p_key),
                                                                                                                                         self._str_format(identifier),
                                                                                                                                         self._str_format(s_key),
@@ -236,10 +269,12 @@ class PeerTable ():
             cursor.execute(command)
             conn.commit()
             conn.close()
+            self.db_lock.release() # release the lock
             t_print("Added new user to db")
         except sqlite3.IntegrityError:
             t_print("user with public key specified already exists.")
             conn.close()
+            self.db_lock.release() # release the lock
             return True
         return False
     

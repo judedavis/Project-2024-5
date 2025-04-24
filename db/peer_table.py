@@ -199,12 +199,12 @@ class PeerTable ():
             command1 = """UPDATE PeerTable
                             SET lastSeenAddress={0}, lastSeenTime={1}
                             WHERE identifier={2}""".format(self._str_format(lastSeenAddress),
-                                                           self._str_format(lastSeenTime),
+                                                           lastSeenTime,
                                                            self._str_format(identifier))
             command2 = """INSERT OR IGNORE INTO PeerTable (identifier, pubKey, lastSeenAddress, lastSeenTime) VALUES ({0}, {1}, {2}, {3})""".format(self._str_format(identifier),
                                                                                                                                                     self._str_format(pubKey),
                                                                                                                                                     self._str_format(lastSeenAddress),
-                                                                                                                                                    self._str_format(lastSeenTime))
+                                                                                                                                                    lastSeenTime)
             conn.execute(command1)
             conn.execute(command2)
         conn.commit()

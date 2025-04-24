@@ -213,6 +213,7 @@ class PeerTable ():
             t_print("Added new host to db")
         except sqlite3.IntegrityError:
             t_print("host already exists.")
+            conn.close()
             return False
         return True
 
@@ -238,6 +239,7 @@ class PeerTable ():
             t_print("Added new user to db")
         except sqlite3.IntegrityError:
             t_print("user with public key specified already exists.")
+            conn.close()
             return True
         return False
     

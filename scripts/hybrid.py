@@ -735,6 +735,7 @@ class TCPHybrid (Server):
         # retrieve the peer's sym_key
         peer_ident = self.peer_table.get_identifier_by_last_addr(addr)
         sym_key = self.peer_table.get_user_s_key(peer_ident)
+        sym_key = bytes.fromhex(sym_key)
         # send keep alive and wait for ack
         self._send_encrypted_and_wait(addr,
                                       self.port,
@@ -753,6 +754,7 @@ class TCPHybrid (Server):
         # retrieve the peer's sym_key
         peer_ident = self.peer_table.get_identifier_by_last_addr(addr)
         sym_key = self.peer_table.get_user_s_key(peer_ident)
+        sym_key = bytes.fromhex(sym_key)
         # send ack
         self._send_encrypted_message(addr, self.port, MessageTypes.KEEP_ALIVE_ACK_1, session_id, sym_key)
         t_print("Keep Alive finished!")
@@ -767,6 +769,7 @@ class TCPHybrid (Server):
         # retrieve the peer's sym_key
         peer_ident = self.peer_table.get_identifier_by_last_addr(addr)
         sym_key = self.peer_table.get_user_s_key(peer_ident)
+        sym_key = bytes.fromhex(sym_key)
         self._send_encrypted_and_wait(addr,
                                       self.port,
                                       MessageTypes.SEND_DATA_REQ,
@@ -784,6 +787,7 @@ class TCPHybrid (Server):
         # retrieve the peer's sym_key
         peer_ident = self.peer_table.get_identifier_by_last_addr(addr)
         sym_key = self.peer_table.get_user_s_key(peer_ident)
+        sym_key = bytes.fromhex(sym_key)
         self._send_encrypted_message(addr, self.port, MessageTypes.SEND_DATA_ACK, session_id, sym_key)
         t_print("Send data finished!")
         return payload

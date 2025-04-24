@@ -4,7 +4,7 @@ from time import sleep
 
 h = TCPHybrid()
 h.start_server()
-addr, port = resolve_host('guadalajara.ddnsking.com', 38888)
+addr, port = resolve_host('192.168.1.101', 38888)
 h._create_client(addr, port)
 h.request_join_network(addr)
 h.request_keep_alive(addr)

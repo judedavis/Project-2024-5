@@ -14,7 +14,7 @@ from scripts.shared import *
 import random as r
 from db.peer_table import PeerTable
 from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateKey, RSAPublicKey
-from time import time
+from time import time, sleep
 
 class TCPHybrid (Server):
     def __init__(self, port=38888) -> None:
@@ -705,7 +705,9 @@ class TCPHybrid (Server):
                             MessageTypes.JOIN_NETWORK_REQ,
                             MessageTypes.JOIN_NETWORK_ACK,
                             session_id)
+        sleep(2)
         self.request_key_exchange(addr, session_id)
+        sleep(2)
         self.request_handshake(addr, session_id)
         self.request_update_peers(addr, session_id)
         t_print("Join network finished!")

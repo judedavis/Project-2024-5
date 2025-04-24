@@ -29,11 +29,14 @@ class TCPHybrid (Server):
 
     # OVERRIDDEN
     def _handle_connection(self, sock : s.socket, addr : list) -> None:
+        # retrieve addr and port
         addr = addr[0]
         port = addr[1]
+        # recieve the message
         msg_len, msg_type, session_id, data = self._receive_message(sock) # receieve both encrypted and unencrypted messages
         offset = 0
-        self._create_client(addr, port, sock) # init a new client with the active socket
+        # ensure we have a client object with the correct port to respond on
+        self._create_client(addr, port, sock)
         if data:
             t_print("received message of type: "+str(msg_type))
         else:
@@ -428,6 +431,9 @@ class TCPHybrid (Server):
             msg = self.crypt.sym_decrypt(encrypted_msg, sym_key, init_vector, auth_tag)
             # unpack the message
             msg_len, msg_type, session_id, data = split_msg(msg)
+            # update the peer table accordingly
+            self.peer_table.update_user_last_address(peer_ident, sock.getpeername()[0])
+            self.peer_table.update_user_last_time(peer_ident, time())
             return (msg_len, msg_type, session_id, data)
             
         if encrypt_flag == self.unencrypted_prefix: # if message is not encrypted (2 null bytes followed by delim)
@@ -526,7 +532,7 @@ class TCPHybrid (Server):
         return True
 
     def receieve_handshake(self, addr : str, session_id : bytes, sym_key : str, peer_ident : str) -> bool:
-        # commit sym_key to peer_table
+        # update peer table accordingly
         self.peer_table.update_user_s_key(peer_ident, sym_key)
         sym_key = bytes.fromhex(sym_key)
         # message = rand|signatute(rand)

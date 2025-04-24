@@ -250,7 +250,7 @@ class TCPHybrid (Server):
             if msg_type == MessageTypes.SEND_DATA_ACK:
                 self.set_and_check_event(msg_type, addr, session_id, data)
 
-            return
+        return
 
 
     def _create_client(self, addr : str, port : int, sock : s.socket = None) -> client.Client:

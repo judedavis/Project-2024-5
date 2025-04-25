@@ -27,8 +27,12 @@ class TCPHybrid (Server):
         self.encrypted_prefix = bytes.fromhex('1c1c')
         self.unencrypted_prefix = bytes.fromhex('0000')
 
+    def _handle_peer(self, sock : s.socket, addr : list) -> None:
+        while self.stay_alive:
+            self._handle_connection(sock, addr)
+
     # OVERRIDDEN
-    def _handle_connection(self, sock : s.socket, addr : list, receiver : bool = False) -> None:
+    def _handle_connection(self, sock : s.socket, addr : list) -> None:
         # retrieve addr and port
         addr = addr[0]
         port = addr[1]
@@ -44,211 +48,210 @@ class TCPHybrid (Server):
 
         # CASE FOR EVERY TYPE OF MESSAGE IN PROTOCOL
         # I would like to use a switch statement, but developing with python 3.9
-        while receiver and self.stay_alive:
-            if msg_type == MessageTypes.NO_OP:
-                """
-                We can close the connection
-                """
-                self._close_client(addr)
-                return
+        if msg_type == MessageTypes.NO_OP:
+            """
+            We can close the connection
+            """
+            self._close_client(addr)
+            return
 
-            if msg_type == MessageTypes.HANDSHAKE_REQ:
-                """
-                expected message = ident|encrypted_sym_len|public_key(sym_key)|signature_len|signature(ident|encrypted_sym_len|public_key(sym_key))
-                """
-                # get identifier
-                peer_ident = data[offset:offset+16] # first 16 bytes is peer identifier
-                peer_ident = bytes(peer_ident).hex()
+        if msg_type == MessageTypes.HANDSHAKE_REQ:
+            """
+            expected message = ident|encrypted_sym_len|public_key(sym_key)|signature_len|signature(ident|encrypted_sym_len|public_key(sym_key))
+            """
+            # get identifier
+            peer_ident = data[offset:offset+16] # first 16 bytes is peer identifier
+            peer_ident = bytes(peer_ident).hex()
+            offset += 16
+            # get length of encrypted_sym
+            encrypted_sym_len = data[offset:offset+4] # 4 byte length
+            encrypted_sym_len = int.from_bytes(encrypted_sym_len, 'little')
+            offset += 4
+            # get encrypted_sym
+            encrypted_sym = data[offset:offset+encrypted_sym_len]
+            encrypted_sym = bytes(encrypted_sym)
+            offset += encrypted_sym_len
+            # reconstruct originally signed message
+            signed_message = data[0:offset]
+            signed_message = bytes(signed_message)
+            # get signature_len
+            signature_len = data[offset:offset+4] # 4 byte length
+            signature_len = int.from_bytes(signature_len, 'little')
+            offset += 4
+            # get signature
+            signature = data[offset:offset+signature_len]
+            signature = bytes(signature)
+            offset+=signature_len
+            # retrieve peer public key and verify signature
+            peer_pubkey = self.peer_table.get_user_p_key(peer_ident)
+            peer_pubkey = self.crypt.public_str_to_key(peer_pubkey) # retrieve the peer's public key for verification of the signature
+            self.crypt.rsa_verify_signature(signature, signed_message, peer_pubkey)
+            sym_key = self.crypt.rsa_decrypt(encrypted_sym).hex()
+            # can't do anything with this here so pass it to callback
+            self.receieve_handshake(addr, session_id, sym_key, peer_ident)
+
+        if msg_type == MessageTypes.HANDSHAKE_ACK:
+            """
+            expected message = rand|signatute(rand)
+            """
+            # get random bits
+            rand = data[offset:offset+8] # the random 8 bytes
+            rand = bytes(rand)
+            offset += 8
+            # get signature
+            signature = data[offset:] # the rest is the signature
+            signature = bytes(signature)
+            # get peer public key
+            peer_ident = self.peer_table.get_identifier_by_last_addr(addr)
+            peer_pubkey = self.peer_table.get_user_p_key(peer_ident)
+            peer_pubkey = self.crypt.public_str_to_key(peer_pubkey)
+
+            self.crypt.rsa_verify_signature(signature, rand, peer_pubkey)
+            self.set_and_check_event(msg_type, addr, session_id, data)
+
+        if msg_type == MessageTypes.HANDSHAKE_ACK_2:
+            """
+            expected message = rand|signatute(rand)
+            """
+            # get random bits
+            rand = data[offset:offset+8] # the random 8 bytes
+            rand = bytes(rand)
+            offset += 8
+            # get signature
+            signature = data[offset:] # the rest is the signature
+            signature = bytes(signature)
+            # get peer public key
+            peer_ident = self.peer_table.get_identifier_by_last_addr(addr)
+            peer_pubkey = self.peer_table.get_user_p_key(peer_ident)
+            peer_pubkey = self.crypt.public_str_to_key(peer_pubkey)
+
+            self.crypt.rsa_verify_signature(signature, rand, peer_pubkey)
+            self.set_and_check_event(msg_type, addr, session_id, data)
+
+        if msg_type == MessageTypes.HANDSHAKE_FINAL_1:
+            """
+            Unused
+            """
+            pass
+
+        if msg_type == MessageTypes.HANDSHAKE_FINAL_2:
+            """
+            Unused
+            """
+            pass
+        
+        if msg_type == MessageTypes.UPDATE_PEERS_REQ:
+            
+            self.receive_update_peers(addr, session_id, data)
+
+        if msg_type == MessageTypes.UPDATE_PEERS_ACK:
+            self.set_and_check_event(msg_type, addr, session_id, data)
+
+        if msg_type == MessageTypes.UPDATE_PEERS_ACK_2:
+            self.set_and_check_event(msg_type, addr, session_id, data)
+
+        if msg_type == MessageTypes.UPDATE_PEERS_FINAL_1:
+            self.set_and_check_event(msg_type, addr, session_id, data)
+
+        if msg_type == MessageTypes.UPDATE_PEERS_FINAL_2:
+            self.set_and_check_event(msg_type, addr, session_id, data)
+
+        if msg_type == MessageTypes.EXCHANGE_REQ:
+            """
+            expected message = ident|public_key_len|public_key|signature_len|signature(ident|public_key_len|public_key)
+            """
+            if data:
+
+                # get ident
+                ident = data[offset:offset+16]
+                ident = bytes(ident).hex()
                 offset += 16
-                # get length of encrypted_sym
-                encrypted_sym_len = data[offset:offset+4] # 4 byte length
-                encrypted_sym_len = int.from_bytes(encrypted_sym_len, 'little')
+                # get public key length
+                public_key_len = data[offset:offset+4]
+                public_key_len = int.from_bytes(public_key_len, 'little')
                 offset += 4
-                # get encrypted_sym
-                encrypted_sym = data[offset:offset+encrypted_sym_len]
-                encrypted_sym = bytes(encrypted_sym)
-                offset += encrypted_sym_len
-                # reconstruct originally signed message
+                # get public key
+                public_key = data[offset:offset+public_key_len]
+                public_key = bytes(public_key)
+                offset += public_key_len
+                # get signed message
                 signed_message = data[0:offset]
                 signed_message = bytes(signed_message)
-                # get signature_len
-                signature_len = data[offset:offset+4] # 4 byte length
+                # get signature length
+                signature_len = data[offset:offset+4]
                 signature_len = int.from_bytes(signature_len, 'little')
                 offset += 4
                 # get signature
                 signature = data[offset:offset+signature_len]
                 signature = bytes(signature)
-                offset+=signature_len
-                # retrieve peer public key and verify signature
-                peer_pubkey = self.peer_table.get_user_p_key(peer_ident)
-                peer_pubkey = self.crypt.public_str_to_key(peer_pubkey) # retrieve the peer's public key for verification of the signature
-                self.crypt.rsa_verify_signature(signature, signed_message, peer_pubkey)
-                sym_key = self.crypt.rsa_decrypt(encrypted_sym).hex()
-                # can't do anything with this here so pass it to callback
-                self.receieve_handshake(addr, session_id, sym_key, peer_ident)
+                offset += signature_len
 
-            if msg_type == MessageTypes.HANDSHAKE_ACK:
-                """
-                expected message = rand|signatute(rand)
-                """
-                # get random bits
-                rand = data[offset:offset+8] # the random 8 bytes
-                rand = bytes(rand)
-                offset += 8
+                public_key = self.crypt.public_key_from_bytes(public_key) # deserialise public key
+                self.crypt.rsa_verify_signature(signature, signed_message, public_key)
+                self.receive_key_exchange(addr, session_id, public_key, ident)
+            else: # no attached data
+                return # silent treatment
+            
+        if msg_type == MessageTypes.EXCHANGE_ACK:
+            """
+            expected message = ident|public_key_len|public_key|signature_len|signature(ident|public_key_len|public_key)
+            """
+            if data:
+
+                # get ident
+                ident = data[offset:offset+16]
+                ident = bytes(ident).hex()
+                offset += 16
+                # get public key length
+                public_key_len = data[offset:offset+4]
+                public_key_len = int.from_bytes(public_key_len, 'little')
+                offset += 4
+                # get public key
+                public_key = data[offset:offset+public_key_len]
+                public_key = bytes(public_key)
+                offset += public_key_len
+                # get signed message
+                signed_message = data[0:offset]
+                signed_message = bytes(signed_message)
+                # get signature length
+                signature_len = data[offset:offset+4]
+                signature_len = int.from_bytes(signature_len, 'little')
+                offset += 4
                 # get signature
-                signature = data[offset:] # the rest is the signature
+                signature = data[offset:offset+signature_len]
                 signature = bytes(signature)
-                # get peer public key
-                peer_ident = self.peer_table.get_identifier_by_last_addr(addr)
-                peer_pubkey = self.peer_table.get_user_p_key(peer_ident)
-                peer_pubkey = self.crypt.public_str_to_key(peer_pubkey)
+                offset += signature_len
 
-                self.crypt.rsa_verify_signature(signature, rand, peer_pubkey)
-                self.set_and_check_event(msg_type, addr, session_id, data)
-
-            if msg_type == MessageTypes.HANDSHAKE_ACK_2:
-                """
-                expected message = rand|signatute(rand)
-                """
-                # get random bits
-                rand = data[offset:offset+8] # the random 8 bytes
-                rand = bytes(rand)
-                offset += 8
-                # get signature
-                signature = data[offset:] # the rest is the signature
-                signature = bytes(signature)
-                # get peer public key
-                peer_ident = self.peer_table.get_identifier_by_last_addr(addr)
-                peer_pubkey = self.peer_table.get_user_p_key(peer_ident)
-                peer_pubkey = self.crypt.public_str_to_key(peer_pubkey)
-
-                self.crypt.rsa_verify_signature(signature, rand, peer_pubkey)
-                self.set_and_check_event(msg_type, addr, session_id, data)
-
-            if msg_type == MessageTypes.HANDSHAKE_FINAL_1:
-                """
-                Unused
-                """
-                pass
-
-            if msg_type == MessageTypes.HANDSHAKE_FINAL_2:
-                """
-                Unused
-                """
-                pass
+                public_key = self.crypt.public_key_from_bytes(public_key) # deserialise public key
+                self.crypt.rsa_verify_signature(signature, signed_message, public_key)
+                self.set_and_check_event(msg_type, addr, session_id, (ident, public_key), True)
+            else: # no attached data
+                self.set_and_check_event(msg_type, addr, session_id, None, False)
             
-            if msg_type == MessageTypes.UPDATE_PEERS_REQ:
-                
-                self.receive_update_peers(addr, session_id, data)
 
-            if msg_type == MessageTypes.UPDATE_PEERS_ACK:
-                self.set_and_check_event(msg_type, addr, session_id, data)
+        if msg_type == MessageTypes.EXCHANGE_ACK_2:
+            self.set_and_check_event(msg_type, addr, session_id, data)
 
-            if msg_type == MessageTypes.UPDATE_PEERS_ACK_2:
-                self.set_and_check_event(msg_type, addr, session_id, data)
+        if msg_type == MessageTypes.EXCHANGE_FINAL:
+            self.set_and_check_event(msg_type, addr, session_id, data)
 
-            if msg_type == MessageTypes.UPDATE_PEERS_FINAL_1:
-                self.set_and_check_event(msg_type, addr, session_id, data)
+        if msg_type == MessageTypes.JOIN_NETWORK_REQ:
+            self.receive_join_network(addr, session_id)
+        
+        if msg_type == MessageTypes.JOIN_NETWORK_ACK:
+            self.set_and_check_event(msg_type, addr, session_id, data)
 
-            if msg_type == MessageTypes.UPDATE_PEERS_FINAL_2:
-                self.set_and_check_event(msg_type, addr, session_id, data)
+        if msg_type == MessageTypes.KEEP_ALIVE_REQ:
+            self.receive_keep_alive(addr, session_id)
+        
+        if msg_type == MessageTypes.KEEP_ALIVE_ACK_1:
+            self.set_and_check_event(msg_type, addr, session_id, data)
 
-            if msg_type == MessageTypes.EXCHANGE_REQ:
-                """
-                expected message = ident|public_key_len|public_key|signature_len|signature(ident|public_key_len|public_key)
-                """
-                if data:
-
-                    # get ident
-                    ident = data[offset:offset+16]
-                    ident = bytes(ident).hex()
-                    offset += 16
-                    # get public key length
-                    public_key_len = data[offset:offset+4]
-                    public_key_len = int.from_bytes(public_key_len, 'little')
-                    offset += 4
-                    # get public key
-                    public_key = data[offset:offset+public_key_len]
-                    public_key = bytes(public_key)
-                    offset += public_key_len
-                    # get signed message
-                    signed_message = data[0:offset]
-                    signed_message = bytes(signed_message)
-                    # get signature length
-                    signature_len = data[offset:offset+4]
-                    signature_len = int.from_bytes(signature_len, 'little')
-                    offset += 4
-                    # get signature
-                    signature = data[offset:offset+signature_len]
-                    signature = bytes(signature)
-                    offset += signature_len
-
-                    public_key = self.crypt.public_key_from_bytes(public_key) # deserialise public key
-                    self.crypt.rsa_verify_signature(signature, signed_message, public_key)
-                    self.receive_key_exchange(addr, session_id, public_key, ident)
-                else: # no attached data
-                    return # silent treatment
-                
-            if msg_type == MessageTypes.EXCHANGE_ACK:
-                """
-                expected message = ident|public_key_len|public_key|signature_len|signature(ident|public_key_len|public_key)
-                """
-                if data:
-
-                    # get ident
-                    ident = data[offset:offset+16]
-                    ident = bytes(ident).hex()
-                    offset += 16
-                    # get public key length
-                    public_key_len = data[offset:offset+4]
-                    public_key_len = int.from_bytes(public_key_len, 'little')
-                    offset += 4
-                    # get public key
-                    public_key = data[offset:offset+public_key_len]
-                    public_key = bytes(public_key)
-                    offset += public_key_len
-                    # get signed message
-                    signed_message = data[0:offset]
-                    signed_message = bytes(signed_message)
-                    # get signature length
-                    signature_len = data[offset:offset+4]
-                    signature_len = int.from_bytes(signature_len, 'little')
-                    offset += 4
-                    # get signature
-                    signature = data[offset:offset+signature_len]
-                    signature = bytes(signature)
-                    offset += signature_len
-
-                    public_key = self.crypt.public_key_from_bytes(public_key) # deserialise public key
-                    self.crypt.rsa_verify_signature(signature, signed_message, public_key)
-                    self.set_and_check_event(msg_type, addr, session_id, (ident, public_key), True)
-                else: # no attached data
-                    self.set_and_check_event(msg_type, addr, session_id, None, False)
-                
-
-            if msg_type == MessageTypes.EXCHANGE_ACK_2:
-                self.set_and_check_event(msg_type, addr, session_id, data)
-
-            if msg_type == MessageTypes.EXCHANGE_FINAL:
-                self.set_and_check_event(msg_type, addr, session_id, data)
-
-            if msg_type == MessageTypes.JOIN_NETWORK_REQ:
-                self.receive_join_network(addr, session_id)
-            
-            if msg_type == MessageTypes.JOIN_NETWORK_ACK:
-                self.set_and_check_event(msg_type, addr, session_id, data)
-
-            if msg_type == MessageTypes.KEEP_ALIVE_REQ:
-                self.receive_keep_alive(addr, session_id)
-            
-            if msg_type == MessageTypes.KEEP_ALIVE_ACK_1:
-                self.set_and_check_event(msg_type, addr, session_id, data)
-
-            if msg_type == MessageTypes.SEND_DATA_REQ:
-                self.receieve_send_data(addr, session_id, data) # pass data as payload
-            
-            if msg_type == MessageTypes.SEND_DATA_ACK:
-                self.set_and_check_event(msg_type, addr, session_id, data)
+        if msg_type == MessageTypes.SEND_DATA_REQ:
+            self.receieve_send_data(addr, session_id, data) # pass data as payload
+        
+        if msg_type == MessageTypes.SEND_DATA_ACK:
+            self.set_and_check_event(msg_type, addr, session_id, data)
 
         return
 
@@ -726,6 +729,9 @@ class TCPHybrid (Server):
     
     def receive_join_network(self, addr : str, session_id : bytes) -> bool:
         self._send_message(addr, self.port, MessageTypes.JOIN_NETWORK_ACK, session_id)
+        self._client_response(addr) # wait for key exchange
+        self._client_response(addr) # wait for handshake
+        self._client_response(addr) # wait for update peers
         t_print("Join network finished!")
         return True
     

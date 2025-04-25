@@ -23,6 +23,10 @@ class Server (SockObj):
             t_print(str(i)+" - "+addrs[i])
         num = input("\n")
         return addrs[int(num)]
+    
+    def _handle_peer(self, sock : s.socket, addr : list) -> None:
+        while self.stay_alive:
+            self._handle_connection(sock, addr)
 
     def _handle_connection (self, sock) -> None:
         data = recv_msg(sock)
@@ -37,7 +41,7 @@ class Server (SockObj):
         while self.stay_alive:
             conn, addr = self.sock.accept()
             t_print("Incoming connection from "+str(addr[0])+" on port "+str(addr[1]))
-            conn_thread = t.Thread(target=self._handle_connection, name="connnection-"+str(thread_count), args=[conn, addr, True])
+            conn_thread = t.Thread(target=self._handle_peer, name="connnection-"+str(thread_count), args=[conn, addr])
             self.threads[conn_thread.ident] = conn_thread
             self.threads[conn_thread.ident].start()
             thread_count+=1

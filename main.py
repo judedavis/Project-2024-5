@@ -57,7 +57,3 @@ class Window ():
     def kill_window(self):
         self.tcp_hybrid.exit()
         self.window.destroy()
-
-
-
-window = Window()

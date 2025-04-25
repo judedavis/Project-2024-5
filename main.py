@@ -23,7 +23,7 @@ class Window ():
             self.elements['address_inp_lbl'].pack()
             self.elements['address_inp_txt'] = tk.Text(self.window, height=1, width=20)
             self.elements['address_inp_txt'].pack()
-            self.elements['address_inp_btn'] = tk.Button(self.window, text='Connect to entrypoint', command=self._background_logic)
+            self.elements['address_inp_btn'] = tk.Button(self.window, text='Connect to entrypoint', command=self._run)
             self.elements['address_inp_btn'].pack()
             self.elements['address_inp_response'] = tk.Label(self.window, text='')
             self.elements['address_inp_response'].pack()
@@ -54,6 +54,11 @@ class Window ():
             self.tcp_hybrid.query_peers()
             sleep(self.tcp_hybrid.keep_alive_timeout)
         
+    def _run(self):
+        self.logic_thread = t.Thread(target=self._background_logic)
+        self.logic_thread.start()
+
     def kill_window(self):
         self.tcp_hybrid.exit()
         self.window.destroy()
+

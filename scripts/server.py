@@ -25,8 +25,9 @@ class Server (SockObj):
         return addrs[int(num)]
     
     def _handle_peer(self, sock : s.socket, addr : list) -> None:
-        while self.stay_alive:
-            self._handle_connection(sock, addr)
+        connection_alive = True
+        while self.stay_alive and connection_alive:
+            connection_alive = self._handle_connection(sock, addr)
 
     def _handle_connection (self, sock) -> None:
         data = recv_msg(sock)

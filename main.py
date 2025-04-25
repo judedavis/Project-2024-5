@@ -11,23 +11,23 @@ class Window ():
         self.logic_thread = None
         # Set up the GUI
         self.headless = headless
-        self.wh = [500,500]
-        self.window = tk.Tk()
-        self.window.config(highlightbackground='black', width=self.wh[0], height=self.wh[1])
-        # Set up gui elements
-        self.elements = {}
-        self.elements['title_lbl'] = tk.Label(self.window, text='Decentralised Chat Application',height=2)
-        self.elements['title_lbl'].pack()
-        self.elements['address_inp_lbl'] = tk.Label(self.window, text='Please input the address of entrypoint:')
-        self.elements['address_inp_lbl'].pack()
-        self.elements['address_inp_txt'] = tk.Text(self.window, height=1, width=20)
-        self.elements['address_inp_txt'].pack()
-        self.elements['address_inp_btn'] = tk.Button(self.window, text='Connect to entrypoint', command=self._background_logic)
-        self.elements['address_inp_btn'].pack()
-        self.elements['address_inp_response'] = tk.Label(self.window, text='')
-        self.elements['address_inp_response'].pack()
-
         if not self.headless: # if not headless then start the GUI
+            self.wh = [500,500]
+            self.window = tk.Tk()
+            self.window.config(highlightbackground='black', width=self.wh[0], height=self.wh[1])
+            # Set up gui elements
+            self.elements = {}
+            self.elements['title_lbl'] = tk.Label(self.window, text='Decentralised Chat Application',height=2)
+            self.elements['title_lbl'].pack()
+            self.elements['address_inp_lbl'] = tk.Label(self.window, text='Please input the address of entrypoint:')
+            self.elements['address_inp_lbl'].pack()
+            self.elements['address_inp_txt'] = tk.Text(self.window, height=1, width=20)
+            self.elements['address_inp_txt'].pack()
+            self.elements['address_inp_btn'] = tk.Button(self.window, text='Connect to entrypoint', command=self._background_logic)
+            self.elements['address_inp_btn'].pack()
+            self.elements['address_inp_response'] = tk.Label(self.window, text='')
+            self.elements['address_inp_response'].pack()
+
             self.window.protocol('WM_DELETE_WINDOW', self.kill_window)
             self.window.mainloop()
         else: # if headless just start the server

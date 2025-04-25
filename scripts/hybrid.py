@@ -27,10 +27,6 @@ class TCPHybrid (Server):
         self.encrypted_prefix = bytes.fromhex('1c1c')
         self.unencrypted_prefix = bytes.fromhex('0000')
 
-    def _handle_peer(self, sock : s.socket, addr : list) -> None:
-        while self.stay_alive:
-            self._handle_connection(sock, addr)
-
     # OVERRIDDEN
     def _handle_connection(self, sock : s.socket, addr : list) -> None:
         # retrieve addr and port

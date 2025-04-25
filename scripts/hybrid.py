@@ -1,7 +1,6 @@
 """
 TODO:
-- Finish the rest of the protocol operations
-- Set up reuse of client socket until you disconnect from the network
+- set up the chat application on top of the code we have already
 - Salvage the code portion of the report, turning it into a implementation header
 - Do more literature review (read some papers dawg)
 """
@@ -725,9 +724,6 @@ class TCPHybrid (Server):
     
     def receive_join_network(self, addr : str, session_id : bytes) -> bool:
         self._send_message(addr, self.port, MessageTypes.JOIN_NETWORK_ACK, session_id)
-        self._client_response(addr) # wait for key exchange
-        self._client_response(addr) # wait for handshake
-        self._client_response(addr) # wait for update peers
         t_print("Join network finished!")
         return True
     

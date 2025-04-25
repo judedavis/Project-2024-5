@@ -23,6 +23,7 @@ class TCPHybrid (Server):
         self.timeout = 500
         self.keep_alive_timeout = 30
         self.peer_table = PeerTable() # Init the DB
+        self.received_messages = []
         self.crypt = Crpyt(self.peer_table) # init the local keys
         self.encrypted_prefix = bytes.fromhex('1c1c')
         self.unencrypted_prefix = bytes.fromhex('0000')
@@ -36,7 +37,7 @@ class TCPHybrid (Server):
             addr = self.peer_table.get_user_last_address(peer_ident)
             try:
                 self._create_client(addr, self.port)
-            except (TimeoutError, s.gaierror) as e:
+            except:
                     t_print('peer '+peer_ident+' timed out or was formatted incorrectly')
                     self.peer_table.delete_user_by_identifier(peer_ident)
                     continue # skip this peer
@@ -812,6 +813,7 @@ class TCPHybrid (Server):
         peer_ident = self.peer_table.get_identifier_by_last_addr(addr)
         sym_key = self.peer_table.get_user_s_key(peer_ident)
         sym_key = bytes.fromhex(sym_key)
+        self.received_messages.append([peer_ident, payload]) # append message to message list
         self._send_encrypted_message(addr, self.port, MessageTypes.SEND_DATA_ACK, session_id, sym_key)
         t_print("Send data finished!")
         return payload

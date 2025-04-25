@@ -21,10 +21,32 @@ class TCPHybrid (Server):
         self.clients = {}
         self.listen_events = {}
         self.timeout = 500
+        self.keep_alive_timeout = 30
         self.peer_table = PeerTable() # Init the DB
         self.crypt = Crpyt(self.peer_table) # init the local keys
         self.encrypted_prefix = bytes.fromhex('1c1c')
         self.unencrypted_prefix = bytes.fromhex('0000')
+
+    def query_peers(self):
+        idents = self.peer_table.get_peer_idents() # get all known peer idents
+        for peer_ident in idents:
+            peer_ident = peer_ident[0]
+            print(peer_ident)
+            peer_sym = self.peer_table.get_user_s_key(peer_ident) # get sym key for each peer
+            addr = self.peer_table.get_user_last_address(peer_ident)
+            try:
+                self._create_client(addr, self.port)
+            except (TimeoutError, s.gaierror) as e:
+                    t_print('peer '+peer_ident+' timed out or was formatted incorrectly')
+                    self.peer_table.delete_user_by_identifier(peer_ident)
+                    continue # skip this peer
+            if peer_sym: # if peer has sym key then just do a keepalive
+                self.request_keep_alive(addr)
+            else: # otherwise just go through the motions with them
+                try:
+                    self.request_join_network(addr)
+                except:
+                    self.peer_table.delete_user_by_identifier(peer_ident)
 
     # OVERRIDDEN
     def _handle_connection(self, sock : s.socket, addr : list) -> None:
@@ -813,7 +835,10 @@ class TCPHybrid (Server):
         self.threads[server_thread.ident].start()
 
     def exit(self) -> None:
-        self.sock.shutdown(s.SHUT_RDWR)
+        try:
+            self.sock.shutdown(s.SHUT_RDWR)
+        except OSError: # sock wasn't initialised yet anyways
+            pass
         self.sock.close() # stop the server
         for client in self.clients:
             client.exit()

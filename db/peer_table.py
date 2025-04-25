@@ -73,6 +73,16 @@ class PeerTable ():
         conn.close()
         self.db_lock.release() # release the lock
         return ident
+    
+    def delete_user_by_identifier(self, identifier : str) -> bool:
+        self.db_lock.acquire() # try to acquire the db lock
+        command = """DELETE FROM PeerTable WHERE identifier = {0}""".format(self._str_format(identifier))
+        conn = sqlite3.connect(self.file_path)
+        cursor = conn.cursor() # create cursor
+        cursor.execute(command)
+        conn.close()
+        self.db_lock.release() # release the lock
+        return True
 
     def get_user_p_key(self, identifier : str) -> str:
         self.db_lock.acquire() # try to acquire the db lock
@@ -176,6 +186,17 @@ class PeerTable ():
         if row:
             return row[0] # retrieve key from returned tuple
         return row # return None
+    
+    def get_peer_idents(self):
+        self.db_lock.acquire() # try to acquire the db lock
+        command = """SELECT identifier FROM PeerTable"""
+        conn = sqlite3.connect(self.file_path)
+        cursor = conn.cursor() # create cursor
+        cursor.execute(command)
+        rows = cursor.fetchall()
+        conn.close()
+        self.db_lock.release() # release the lock
+        return rows[1:] # remove the first peer (the host)
     
     def get_peers(self):
         self.db_lock.acquire() # try to acquire the db lock
